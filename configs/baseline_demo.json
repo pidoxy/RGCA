@@ -1,0 +1,11 @@
+{
+  "name": "baseline_demo",
+  "top_k": 3,
+  "mode": "all",
+  "generator_backend": "mock",
+  "retrieval_text_fields": [
+    "findings",
+    "impression",
+    "report_text"
+  ]
+}
