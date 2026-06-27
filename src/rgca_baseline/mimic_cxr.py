@@ -173,9 +173,102 @@ def build_mimic_subset(
     return studies
 
 
+def plan_mimic_pilot_subset(
+    metadata_path: str | Path,
+    split_path: str | Path,
+    image_root: str | Path,
+    label_path: str | Path | None = None,
+    train_limit: int = 150,
+    eval_limit: int = 50,
+    allowed_views: set[str] | None = None,
+) -> list[dict]:
+    metadata_rows = _read_csv_maybe_gz(metadata_path)
+    split_rows = _read_csv_maybe_gz(split_path)
+    labels_by_study = _load_labels(label_path)
+
+    split_lookup = {
+        (str(row["subject_id"]), str(row["study_id"]), str(row["dicom_id"])): row
+        for row in split_rows
+    }
+
+    grouped: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in metadata_rows:
+        key = (str(row["subject_id"]), str(row["study_id"]), str(row["dicom_id"]))
+        split_row = split_lookup.get(key)
+        if not split_row:
+            continue
+        merged = dict(row)
+        merged["split"] = split_row["split"]
+        grouped[str(row["study_id"])].append(merged)
+
+    counts = {"train": 0, "validate": 0}
+    plans: list[dict] = []
+
+    for study_id in sorted(grouped.keys()):
+        rows = grouped[study_id]
+        chosen_row = None
+        if allowed_views:
+            for row in rows:
+                view = (row.get("ViewPosition") or "").upper()
+                if view in allowed_views:
+                    chosen_row = row
+                    break
+        if chosen_row is None:
+            chosen_row = rows[0]
+
+        split_name = chosen_row.get("split", "")
+        if split_name not in {"train", "validate"}:
+            continue
+        if split_name == "train" and counts["train"] >= train_limit:
+            continue
+        if split_name == "validate" and counts["validate"] >= eval_limit:
+            continue
+
+        view_position = (chosen_row.get("ViewPosition") or "").upper()
+        if allowed_views and view_position not in allowed_views:
+            continue
+
+        subject_id = str(chosen_row["subject_id"])
+        dicom_id = str(chosen_row["dicom_id"])
+        planned_split = "retrieval_pool" if split_name == "train" else "eval"
+        image_path = (
+            Path(image_root)
+            / f"p{subject_id[:2]}"
+            / f"p{subject_id}"
+            / f"s{study_id}"
+            / f"{dicom_id}.jpg"
+        )
+        plans.append(
+            {
+                "study_id": study_id,
+                "subject_id": subject_id,
+                "dicom_id": dicom_id,
+                "source_split": split_name,
+                "planned_split": planned_split,
+                "view_position": view_position,
+                "image_path": str(image_path),
+                "labels": labels_by_study.get(study_id, []),
+            }
+        )
+        counts[split_name] += 1
+
+        if counts["train"] >= train_limit and counts["validate"] >= eval_limit:
+            break
+
+    return plans
+
+
 def write_study_records(path: str | Path, studies: list[StudyRecord]) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8") as handle:
         for study in studies:
             handle.write(json.dumps(study.to_dict(), ensure_ascii=True) + "\n")
+
+
+def write_pilot_plan(path: str | Path, plans: list[dict]) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("w", encoding="utf-8") as handle:
+        for row in plans:
+            handle.write(json.dumps(row, ensure_ascii=True) + "\n")

@@ -32,6 +32,8 @@ class RetrievalResult:
     retrieved_studies: list[str]
     retrieved_reports: list[str]
     similarity_scores: list[float]
+    retrieved_labels: list[list[str]] = field(default_factory=list)
+    backend: str = "unknown"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -42,8 +44,15 @@ class GenerationResult:
     study_id: str
     mode: Mode
     prompt: str
+    target_report: str
+    retrieved_reports: list[str]
     generated_report: str
     retrieved_studies: list[str] = field(default_factory=list)
+    labels_reference: list[str] = field(default_factory=list)
+    labels_generated: list[str] = field(default_factory=list)
+    hallucination_flags: list[str] = field(default_factory=list)
+    retriever_backend: str = "unknown"
+    generator_backend: str = "mock"
 
     def to_dict(self) -> dict:
         return asdict(self)

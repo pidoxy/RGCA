@@ -23,6 +23,12 @@ def parse_args() -> argparse.Namespace:
         help="Baseline mode to run.",
     )
     parser.add_argument("--top-k", type=int, default=3, help="Number of retrieved reports.")
+    parser.add_argument(
+        "--retriever",
+        default="lexical",
+        choices=["lexical", "mock_image", "hashing_text"],
+        help="Retriever backend to use.",
+    )
     return parser.parse_args()
 
 
@@ -33,6 +39,7 @@ def main() -> None:
         output_dir=args.output_dir,
         mode=args.mode,
         top_k=args.top_k,
+        retriever_backend=args.retriever,
     )
     print("Baseline run complete.")
     print(summary)

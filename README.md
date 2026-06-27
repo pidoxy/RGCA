@@ -24,6 +24,8 @@ This repository currently includes:
 - a runnable baseline notebook
 - a small demo dataset so the workflow runs end-to-end immediately
 - a real-data MIMIC-CXR subset builder
+- a study-level embedding and retrieval index skeleton
+- a first-pass hallucination evaluation module
 - retrieval, mismatch selection, prompt construction, and generation interfaces
 - a mock VLM backend for local workflow validation
 
@@ -40,15 +42,22 @@ RGCA/
       demo_studies.jsonl
   outputs/
   scripts/
+    build_retrieval_index.py
+    evaluate_generations.py
     run_baseline.py
   src/
     rgca_baseline/
       __init__.py
+      embeddings.py
+      evaluation.py
       generator.py
+      indexing.py
       io_utils.py
+      mismatch.py
       pipeline.py
       prompts.py
       retrieval.py
+      vlm_client.py
       schemas.py
       text_utils.py
   pyproject.toml
@@ -79,6 +88,7 @@ python3 scripts/run_baseline.py \
   --input data/demo/demo_studies.jsonl \
   --output-dir outputs/demo_run \
   --mode all \
+  --retriever lexical \
   --top-k 3
 ```
 
@@ -90,6 +100,25 @@ This writes:
 - `outputs/demo_run/generations_retrieval.jsonl`
 - `outputs/demo_run/generations_mismatch.jsonl`
 - `outputs/demo_run/run_summary.json`
+
+Build a retrieval index artifact:
+
+```bash
+python3 scripts/build_retrieval_index.py \
+  --subset data/demo/demo_studies.jsonl \
+  --backend mock_image \
+  --output-dir outputs/indexes/demo_mock_image
+```
+
+Evaluate generated outputs:
+
+```bash
+python3 scripts/evaluate_generations.py \
+  --studies data/demo/demo_studies.jsonl \
+  --generations outputs/demo_run/generations_mismatch.jsonl \
+  --retrieval-results outputs/demo_run/mismatch_results.jsonl \
+  --output-dir outputs/demo_eval_mismatch
+```
 
 ## Notebook Workflow
 
@@ -162,6 +191,12 @@ Supported `split` values for the current script:
 
 The current retriever is a lightweight lexical retriever over study text fields so the workflow runs without external dependencies.
 
+You can now also run:
+
+- `lexical`
+- `mock_image`
+- `hashing_text`
+
 For the real baseline, replace it with:
 
 - image encoder: `BioMedCLIP` or similar
@@ -187,6 +222,17 @@ Even after replacing the internals, keep the artifacts:
 - mismatch results
 - generated reports
 - summary metrics
+
+Each generation record is now shaped around a stable experiment contract with:
+
+- `study_id`
+- `mode`
+- `target_report`
+- `retrieved_reports`
+- `generated_report`
+- `labels_reference`
+- `labels_generated`
+- `hallucination_flags`
 
 Those outputs are the evidence trail for your baseline.
 

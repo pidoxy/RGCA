@@ -2,24 +2,32 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rgca_baseline.generator import MockVLMGenerator
+from rgca_baseline.evaluation import infer_labels_from_text
 from rgca_baseline.io_utils import read_jsonl, write_json, write_jsonl
 from rgca_baseline.prompts import build_prompt
-from rgca_baseline.retrieval import LexicalRetriever
+from rgca_baseline.real_retrieval import create_retriever_backend, get_retrieval_plan
 from rgca_baseline.schemas import GenerationResult, StudyRecord
+from rgca_baseline.vlm_client import MockVLMClient
 
 
 def load_studies(path: str | Path) -> list[StudyRecord]:
     return [StudyRecord(**row) for row in read_jsonl(path)]
 
 
-def run_pipeline(input_path: str | Path, output_dir: str | Path, mode: str, top_k: int) -> dict:
+def run_pipeline(
+    input_path: str | Path,
+    output_dir: str | Path,
+    mode: str,
+    top_k: int,
+    retriever_backend: str = "lexical",
+    generator_backend: str = "mock",
+) -> dict:
     studies = load_studies(input_path)
     retrieval_pool = [study for study in studies if study.split == "retrieval_pool"]
     eval_studies = [study for study in studies if study.split == "eval"]
 
-    retriever = LexicalRetriever(retrieval_pool)
-    generator = MockVLMGenerator()
+    retriever = create_retriever_backend(retriever_backend, retrieval_pool)
+    generator = MockVLMClient()
     output_root = Path(output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
@@ -50,18 +58,28 @@ def run_pipeline(input_path: str | Path, output_dir: str | Path, mode: str, top_
                 retrieved_ids = mismatch_result.retrieved_studies
 
             prompt = build_prompt(current_mode, study, retrieved_reports)
-            generated_report = generator.generate(
+            generated_report = generator.generate_report(
                 study=study,
+                prompt=prompt,
                 mode=current_mode,
                 retrieved_reports=retrieved_reports,
             )
+            generated_labels = infer_labels_from_text(generated_report)
+            hallucination_flags = sorted(set(generated_labels) - set(study.labels))
             generations_by_mode[current_mode].append(
                 GenerationResult(
                     study_id=study.study_id,
                     mode=current_mode,
                     prompt=prompt,
+                    target_report=study.report_text,
+                    retrieved_reports=retrieved_reports,
                     generated_report=generated_report,
                     retrieved_studies=retrieved_ids,
+                    labels_reference=study.labels,
+                    labels_generated=generated_labels,
+                    hallucination_flags=hallucination_flags,
+                    retriever_backend=retriever_backend,
+                    generator_backend=generator_backend,
                 ).to_dict()
             )
 
@@ -76,6 +94,9 @@ def run_pipeline(input_path: str | Path, output_dir: str | Path, mode: str, top_
         "output_dir": str(output_dir),
         "mode": mode,
         "top_k": top_k,
+        "retriever_backend": retriever_backend,
+        "generator_backend": generator_backend,
+        "retrieval_plan": get_retrieval_plan(retriever_backend).__dict__,
         "retrieval_pool_size": len(retrieval_pool),
         "eval_size": len(eval_studies),
         "generated_counts": {key: len(value) for key, value in generations_by_mode.items() if value},
