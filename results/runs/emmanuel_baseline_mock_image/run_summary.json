@@ -1,0 +1,20 @@
+{
+  "input_path": "/Users/mac/Documents/New project/RGCA/data/demo/demo_studies.jsonl",
+  "output_dir": "/Users/mac/Documents/New project/RGCA/outputs/emmanuel_baseline_mock_image",
+  "mode": "all",
+  "top_k": 3,
+  "retriever_backend": "mock_image",
+  "generator_backend": "mock",
+  "retrieval_plan": {
+    "backend": "mock_image",
+    "similarity_space": "mock study-level image proxy embedding",
+    "notes": "Runnable image-like retrieval path for index and artifact validation."
+  },
+  "retrieval_pool_size": 5,
+  "eval_size": 3,
+  "generated_counts": {
+    "no_retrieval": 3,
+    "retrieval": 3,
+    "mismatch": 3
+  }
+}

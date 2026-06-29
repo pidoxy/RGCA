@@ -1,0 +1,10 @@
+{
+  "mismatch": {
+    "n": 3,
+    "hallucination_rate": 0.6666666666666666,
+    "retrieval_induced_hallucination_rate": 0.6666666666666666,
+    "retrieval_copy_rate": 0.6666666666666666,
+    "total_hallucinated_labels": 4,
+    "total_retrieval_induced_hallucinations": 4
+  }
+}

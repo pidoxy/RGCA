@@ -35,16 +35,24 @@ This means you can run the whole pipeline now, then replace the demo dataset and
 
 ```text
 RGCA/
-  configs/
-    baseline_demo.json
+  docs/
+    PROBLEM_FORMULATION.md
+    LITERATURE_SYNTHESIS.md
+    HALLUCINATION_FRAMEWORK.md
+    RETRIEVAL_PLAN.md
+    RESEARCH_SPEC.md
+    PAPER_OUTLINE.md
+    PAPER_CLAIMS.md
+    EXPERIMENT_PLAN.md
+    ROADMAP.md
   data/
+    raw/
+    interim/
+    processed/
     demo/
       demo_studies.jsonl
-  outputs/
-  scripts/
-    build_retrieval_index.py
-    evaluate_generations.py
-    run_baseline.py
+  configs/
+    baseline_demo.json
   src/
     rgca_baseline/
       __init__.py
@@ -53,15 +61,44 @@ RGCA/
       generator.py
       indexing.py
       io_utils.py
+      mimic_cxr.py
       mismatch.py
       pipeline.py
       prompts.py
+      real_retrieval.py
       retrieval.py
-      vlm_client.py
       schemas.py
       text_utils.py
+      vlm_client.py
+  scripts/
+    build_mimic_subset.py
+    build_retrieval_index.py
+    evaluate_generations.py
+    plan_mimic_pilot_subset.py
+    run_baseline.py
+  notebooks/
+    baseline_experiment.ipynb
+  results/
+    runs/
+    analysis/
+    figures/
+  paper/
+    figures/
+    tables/
+    references.bib
+    rgca.tex
   pyproject.toml
 ```
+
+### Folder Roles
+
+- `docs/` is the research-design layer. It holds the problem formulation, literature synthesis, hallucination framework, retrieval plan, experiment plan, and manuscript logic.
+- `data/` is the dataset layer. Use `raw/` for source downloads, `interim/` for manifests and index artifacts, `processed/` for experiment-ready JSONL subsets, and `demo/` for lightweight runnable examples.
+- `src/` is the reusable implementation layer. Retrieval, ingestion, indexing, generation, and evaluation code live here.
+- `scripts/` is the execution layer. These are task-oriented entry points for subset building, index construction, baseline runs, and evaluation.
+- `notebooks/` is the interactive analysis layer for retrieval inspection, side-by-side generation comparison, and result exploration.
+- `results/` is the experiment-output layer. Store run artifacts, processed summaries, and analysis figures here.
+- `paper/` is the manuscript layer. It holds figures, tables, bibliography entries, and the paper draft itself.
 
 ## Baselines Implemented
 
@@ -86,7 +123,7 @@ Run the full demo:
 cd "/Users/mac/Documents/New project/RGCA"
 python3 scripts/run_baseline.py \
   --input data/demo/demo_studies.jsonl \
-  --output-dir outputs/demo_run \
+  --output-dir results/runs/demo_run \
   --mode all \
   --retriever lexical \
   --top-k 3
@@ -94,12 +131,12 @@ python3 scripts/run_baseline.py \
 
 This writes:
 
-- `outputs/demo_run/retrieval_results.jsonl`
-- `outputs/demo_run/mismatch_results.jsonl`
-- `outputs/demo_run/generations_no_retrieval.jsonl`
-- `outputs/demo_run/generations_retrieval.jsonl`
-- `outputs/demo_run/generations_mismatch.jsonl`
-- `outputs/demo_run/run_summary.json`
+- `results/runs/demo_run/retrieval_results.jsonl`
+- `results/runs/demo_run/mismatch_results.jsonl`
+- `results/runs/demo_run/generations_no_retrieval.jsonl`
+- `results/runs/demo_run/generations_retrieval.jsonl`
+- `results/runs/demo_run/generations_mismatch.jsonl`
+- `results/runs/demo_run/run_summary.json`
 
 Build a retrieval index artifact:
 
@@ -107,7 +144,7 @@ Build a retrieval index artifact:
 python3 scripts/build_retrieval_index.py \
   --subset data/demo/demo_studies.jsonl \
   --backend mock_image \
-  --output-dir outputs/indexes/demo_mock_image
+  --output-dir results/runs/indexes/demo_mock_image
 ```
 
 Evaluate generated outputs:
@@ -115,9 +152,9 @@ Evaluate generated outputs:
 ```bash
 python3 scripts/evaluate_generations.py \
   --studies data/demo/demo_studies.jsonl \
-  --generations outputs/demo_run/generations_mismatch.jsonl \
-  --retrieval-results outputs/demo_run/mismatch_results.jsonl \
-  --output-dir outputs/demo_eval_mismatch
+  --generations results/runs/demo_run/generations_mismatch.jsonl \
+  --retrieval-results results/runs/demo_run/mismatch_results.jsonl \
+  --output-dir results/runs/demo_eval_mismatch
 ```
 
 ## Notebook Workflow
