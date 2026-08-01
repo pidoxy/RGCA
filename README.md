@@ -162,6 +162,7 @@ python3 scripts/evaluate_generations.py \
 For interactive experiment work, open:
 
 - [notebooks/baseline_experiment.ipynb](notebooks/baseline_experiment.ipynb)
+- [notebooks/kaggle_no_gcloud_baseline.ipynb](notebooks/kaggle_no_gcloud_baseline.ipynb)
 
 The notebook uses the same reusable code under `src/rgca_baseline/`, so you do not end up with notebook-only logic that is hard to maintain.
 

@@ -74,6 +74,10 @@ If Kaggle shows `No input attached` but you have access to the Google Cloud Stor
 
 - [Kaggle + GCS Private Dataset Setup](KAGGLE_GCS_PRIVATE_DATASET.md)
 
+If you want the simplest notebook with no Google Cloud commands, use:
+
+- [../notebooks/kaggle_no_gcloud_baseline.ipynb](../notebooks/kaggle_no_gcloud_baseline.ipynb)
+
 ## Option A: Run From Existing Subset JSONL
 
 Use this when you already have:
