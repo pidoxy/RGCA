@@ -163,8 +163,19 @@ For interactive experiment work, open:
 
 - [notebooks/baseline_experiment.ipynb](notebooks/baseline_experiment.ipynb)
 - [notebooks/kaggle_no_gcloud_baseline.ipynb](notebooks/kaggle_no_gcloud_baseline.ipynb)
+- [notebooks/kaggle_one_command_baseline.ipynb](notebooks/kaggle_one_command_baseline.ipynb)
 
 The notebook uses the same reusable code under `src/rgca_baseline/`, so you do not end up with notebook-only logic that is hard to maintain.
+
+For Kaggle, the most reliable path is the one-command bootstrap:
+
+```bash
+cd /kaggle/working/RGCA
+python scripts/kaggle_bootstrap_baseline.py \
+  --output-dir /kaggle/working/rgca_experiments/mimic_pilot_baseline_v0 \
+  --pilot-output-dir /kaggle/working/rgca_pilot_500 \
+  --overwrite
+```
 
 ## Kaggle Pilot Workflow
 

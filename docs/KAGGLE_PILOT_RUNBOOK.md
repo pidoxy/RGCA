@@ -78,6 +78,24 @@ If you want the simplest notebook with no Google Cloud commands, use:
 
 - [../notebooks/kaggle_no_gcloud_baseline.ipynb](../notebooks/kaggle_no_gcloud_baseline.ipynb)
 
+Recommended now: use the one-command bootstrap notebook/script instead of manually running many notebook cells:
+
+- [../notebooks/kaggle_one_command_baseline.ipynb](../notebooks/kaggle_one_command_baseline.ipynb)
+
+```bash
+cd /kaggle/working/RGCA
+python scripts/kaggle_bootstrap_baseline.py \
+  --output-dir /kaggle/working/rgca_experiments/mimic_pilot_baseline_v0 \
+  --pilot-output-dir /kaggle/working/rgca_pilot_500 \
+  --overwrite
+```
+
+If you only want to verify code with the demo dataset, add:
+
+```bash
+--allow-demo
+```
+
 ## Option A: Run From Existing Subset JSONL
 
 Use this when you already have:
