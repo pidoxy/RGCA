@@ -147,6 +147,32 @@ python3 scripts/build_retrieval_index.py \
   --output-dir results/runs/indexes/demo_mock_image
 ```
 
+Run retrieval-only validation before real VLM generation:
+
+```bash
+python3 scripts/run_retrieval_validation.py \
+  --subset data/demo/demo_studies.jsonl \
+  --backend hashing_text \
+  --output-dir results/runs/retrieval_validation_demo \
+  --top-k 3 \
+  --eval-limit 3
+```
+
+For the first real image-retrieval run on Kaggle GPU, install optional dependencies and use `biomedclip`:
+
+```bash
+pip install open_clip_torch pillow
+
+python scripts/run_retrieval_validation.py \
+  --subset /kaggle/input/datasets/emmapi/rgca-private-dataset/mimic_subset.jsonl \
+  --backend biomedclip \
+  --output-dir /kaggle/working/rgca_experiments/biomedclip_retrieval_validation_v0 \
+  --top-k 3 \
+  --eval-limit 20
+```
+
+`biomedclip` requires actual image files at each record's `image_path`. A metadata/report-only subset is enough for stress tests, but not enough for real image retrieval.
+
 Evaluate generated outputs:
 
 ```bash
@@ -220,6 +246,8 @@ See:
 
 - [docs/KAGGLE_PILOT_RUNBOOK.md](docs/KAGGLE_PILOT_RUNBOOK.md)
 - [docs/KAGGLE_GCS_PRIVATE_DATASET.md](docs/KAGGLE_GCS_PRIVATE_DATASET.md)
+- [docs/REAL_RETRIEVAL_MILESTONE.md](docs/REAL_RETRIEVAL_MILESTONE.md)
+- [docs/SUBMISSION_STRATEGY_2026.md](docs/SUBMISSION_STRATEGY_2026.md)
 
 If you already have a private Kaggle dataset with `mimic_subset.jsonl`:
 

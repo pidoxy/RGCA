@@ -85,45 +85,6 @@ class IndexedRetrieverBackend(BaseRetrieverBackend):
         )
 
 
-class BiomedCLIPRetrieverBackend(BaseRetrieverBackend):
-    """
-    First real retrieval integration point.
-
-    This backend is intentionally a scaffold. It defines the contract and the setup path
-    for image-text embedding retrieval, but it does not download or initialize large
-    model weights automatically in this environment.
-    """
-
-    def __init__(self, pool: list[StudyRecord], model_name: str) -> None:
-        self.pool = pool
-        self.model_name = model_name
-        self._dependency_error = self._check_dependencies()
-
-    def _check_dependencies(self) -> Exception | None:
-        try:
-            import torch  # noqa: F401
-            from PIL import Image  # noqa: F401
-            from transformers import AutoModel, AutoProcessor  # noqa: F401
-        except Exception as exc:  # pragma: no cover - setup dependent
-            return exc
-        return RuntimeError(
-            "BiomedCLIP retrieval scaffold is present, but model-specific embedding "
-            "implementation still needs to be completed for your chosen checkpoint."
-        )
-
-    def retrieve(self, query: StudyRecord, top_k: int) -> RetrievalResult:
-        raise RuntimeError(
-            "BiomedCLIPRetrieverBackend is a scaffold. Finish the embedding path after "
-            f"installing dependencies and choosing the exact checkpoint. Setup issue: {self._dependency_error}"
-        )
-
-    def mismatch(self, query: StudyRecord, top_k: int) -> RetrievalResult:
-        raise RuntimeError(
-            "Mismatch retrieval for the BiomedCLIP backend should be derived after "
-            "the real embedding retrieval path is implemented."
-        )
-
-
 def get_retrieval_plan(backend: str) -> RetrievalPlan:
     if backend == "lexical":
         return RetrievalPlan(
