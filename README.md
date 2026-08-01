@@ -174,6 +174,11 @@ For Kaggle, the safest path is the research-safe notebook. It assumes the datase
 
 Prepare the pilot subset from PhysioNet:
 
+In Kaggle Secrets, create and enable:
+
+- `PHYSIONET_USERNAME`
+- `PHYSIONET_PASS`
+
 ```bash
 cd /kaggle/working/RGCA
 python scripts/kaggle_prepare_mimic_subset.py \

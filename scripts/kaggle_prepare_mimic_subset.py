@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -30,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Prepare a MIMIC-CXR pilot subset on Kaggle without GCloud.",
     )
-    parser.add_argument("--physionet-user", required=True, help="PhysioNet username.")
+    parser.add_argument("--physionet-user", help="PhysioNet username. Defaults to PHYSIONET_USERNAME or PHYSIONET_USER.")
     parser.add_argument("--work-dir", default="/kaggle/working/physionet")
     parser.add_argument("--output-dir", default="/kaggle/working/rgca_pilot_500")
     parser.add_argument("--retrieval-limit", type=int, default=400)
@@ -80,6 +81,12 @@ def find_reports_root(work_dir: Path) -> Path:
 
 def main() -> None:
     args = parse_args()
+    physionet_user = args.physionet_user or os.environ.get("PHYSIONET_USERNAME") or os.environ.get("PHYSIONET_USER")
+    if not physionet_user:
+        raise SystemExit(
+            "Missing PhysioNet username. Pass --physionet-user or set the PHYSIONET_USERNAME Kaggle secret."
+        )
+
     work_dir = Path(args.work_dir)
     output_dir = Path(args.output_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -92,10 +99,12 @@ def main() -> None:
     images_root = work_dir / "mimic-cxr-jpg" / "files"
 
     if not args.skip_download:
-        password = getpass.getpass("PhysioNet password: ")
+        password = os.environ.get("PHYSIONET_PASS") or os.environ.get("PHYSIONET_PASSWORD")
+        if not password:
+            password = getpass.getpass("PhysioNet password: ")
         for filename in SMALL_JPG_FILES:
-            download_with_netrc(f"{JPG_BASE_URL}/{filename}", work_dir / filename, args.physionet_user, password)
-        download_with_netrc(REPORTS_URL, reports_zip, args.physionet_user, password)
+            download_with_netrc(f"{JPG_BASE_URL}/{filename}", work_dir / filename, physionet_user, password)
+        download_with_netrc(REPORTS_URL, reports_zip, physionet_user, password)
 
     if reports_zip.exists():
         reports_extract_dir.mkdir(parents=True, exist_ok=True)

@@ -45,6 +45,11 @@ python -m pip install -e .
 
 Prepare the pilot subset from PhysioNet. This downloads only metadata, split labels, CheXpert labels, and report text. It does not download the full image archive.
 
+In Kaggle, create and enable these notebook secrets first:
+
+- `PHYSIONET_USERNAME`
+- `PHYSIONET_PASS`
+
 ```bash
 python scripts/kaggle_prepare_mimic_subset.py \
   --physionet-user YOUR_PHYSIONET_USERNAME \
