@@ -15,6 +15,13 @@ if str(PROJECT_ROOT / "scripts") not in sys.path:
 
 from kaggle_run_pilot import build_balanced_mimic_subset
 from package_private_kaggle_dataset import main as package_main
+from rgca_baseline.integrity import (
+    assert_dataset_allowed,
+    assert_suite_allowed,
+    jsonl_fingerprint,
+    validate_image_paths,
+    validate_study_records,
+)
 from rgca_baseline.io_utils import write_json
 from rgca_baseline.mimic_cxr import write_study_records
 from rgca_baseline.pipeline import load_studies
@@ -40,7 +47,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--retrieval-limit", type=int, default=400)
     parser.add_argument("--eval-limit", type=int, default=100)
     parser.add_argument("--top-k", type=int, default=3)
-    parser.add_argument("--allow-demo", action="store_true", help="Fall back to repo demo data if MIMIC data is absent.")
+    parser.add_argument(
+        "--execution-mode",
+        choices=["debug", "stress", "real"],
+        default="stress",
+        help="debug allows demo/mock, stress allows controlled stress tests, real blocks mock/stress/debug backends.",
+    )
+    parser.add_argument("--allow-demo", action="store_true", help="Fall back to repo demo data. Only allowed in debug mode.")
     parser.add_argument("--no-package", action="store_true", help="Skip private dataset package creation.")
     parser.add_argument("--overwrite", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
@@ -104,7 +117,7 @@ def build_subset_from_local_files(args: argparse.Namespace) -> Path | None:
     split_path = find_first_file("mimic-cxr-2.0.0-split.csv.gz", roots)
     labels_path = find_first_file("mimic-cxr-2.0.0-chexpert.csv.gz", roots)
     reports_root = find_dataset_files_dir("mimic-cxr", roots)
-    images_root = find_dataset_files_dir("mimic-cxr-jpg", roots)
+    images_root = find_dataset_files_dir("mimic-cxr-jpg", roots) or Path(args.physionet_root) / "mimic-cxr-jpg" / "files"
 
     required = {
         "metadata": metadata_path,
@@ -117,7 +130,13 @@ def build_subset_from_local_files(args: argparse.Namespace) -> Path | None:
     for name, path in required.items():
         print(f"- {name}: {path} | exists={bool(path and path.exists())}")
 
-    missing = {name: str(path) for name, path in required.items() if not path or not path.exists()}
+    missing = {
+        name: str(path)
+        for name, path in required.items()
+        if name != "images_root" and (not path or not path.exists())
+    }
+    if args.execution_mode == "real" and not Path(images_root).exists():
+        missing["images_root"] = str(images_root)
     if missing:
         print("Cannot build subset from raw files because required inputs are missing:")
         print(json.dumps(missing, indent=2))
@@ -142,26 +161,33 @@ def build_subset_from_local_files(args: argparse.Namespace) -> Path | None:
     return output_path
 
 
-def validate_subset(subset_path: Path) -> dict:
+def validate_subset(subset_path: Path, execution_mode: str) -> dict:
+    try:
+        assert_dataset_allowed(subset_path, execution_mode)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
     studies = load_studies(subset_path)
-    retrieval_pool = [study for study in studies if study.split == "retrieval_pool"]
-    eval_studies = [study for study in studies if study.split == "eval"]
-    summary = {
-        "subset_path": str(subset_path),
-        "total": len(studies),
-        "retrieval_pool": len(retrieval_pool),
-        "eval": len(eval_studies),
-    }
+    summary = validate_study_records(studies)
+    summary["subset_path"] = str(subset_path)
+    summary["fingerprint"] = jsonl_fingerprint(subset_path)
+    if execution_mode == "real":
+        image_validation = validate_image_paths(studies)
+        summary["image_validation"] = image_validation
+        if not image_validation["valid"]:
+            raise SystemExit(f"Real mode requires all image files to exist: {json.dumps(image_validation, indent=2)}")
     print(json.dumps(summary, indent=2))
-    if not retrieval_pool or not eval_studies:
-        raise SystemExit("Invalid subset: it must contain both retrieval_pool and eval records.")
+    if not summary["valid"]:
+        raise SystemExit(f"Invalid subset: {json.dumps(summary, indent=2)}")
     return summary
 
 
-def run_suite(config_path: Path, subset_path: Path, output_dir: Path, overwrite: bool) -> dict:
+def run_suite(config_path: Path, subset_path: Path, output_dir: Path, overwrite: bool, execution_mode: str) -> dict:
     config = load_config(config_path)
     validate_config(config)
-    studies_by_id = {study.study_id: study for study in load_studies(subset_path)}
+    experiment_tiers = assert_suite_allowed(config["experiments"], execution_mode)
+    studies = load_studies(subset_path)
+    studies_by_id = {study.study_id: study for study in studies}
     output_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
@@ -181,6 +207,10 @@ def run_suite(config_path: Path, subset_path: Path, output_dir: Path, overwrite:
         "suite_name": config["suite_name"],
         "config_path": str(config_path),
         "input_path": str(subset_path),
+        "execution_mode": execution_mode,
+        "dataset_fingerprint": jsonl_fingerprint(subset_path),
+        "dataset_validation": validate_study_records(studies),
+        "experiment_tiers": experiment_tiers,
         "output_dir": str(output_dir),
         "experiments": results,
     }
@@ -225,6 +255,8 @@ def package_outputs(subset_path: Path, output_dir: Path) -> Path:
 
 def main() -> None:
     args = parse_args()
+    if args.allow_demo and args.execution_mode != "debug":
+        raise SystemExit("--allow-demo is only permitted with --execution-mode debug.")
 
     section("1. Discover Subset")
     subset_path = discover_subset(args.subset_jsonl, args.allow_demo)
@@ -242,7 +274,7 @@ def main() -> None:
         )
 
     section("3. Validate Subset")
-    subset_summary = validate_subset(subset_path)
+    subset_summary = validate_subset(subset_path, args.execution_mode)
 
     section("4. Run Experiment Suite")
     output_dir = Path(args.output_dir)
@@ -251,6 +283,7 @@ def main() -> None:
         subset_path=subset_path,
         output_dir=output_dir,
         overwrite=args.overwrite,
+        execution_mode=args.execution_mode,
     )
 
     section("5. Summarize Results")
@@ -267,6 +300,7 @@ def main() -> None:
     section("Complete")
     bootstrap_summary = {
         "subset": subset_summary,
+        "execution_mode": args.execution_mode,
         "suite_manifest": str(output_dir / "suite_manifest.json"),
         "tables_dir": str(tables_dir),
         "private_dataset_zip": str(package_zip) if package_zip else None,

@@ -13,6 +13,12 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from rgca_baseline.evaluation import evaluate_generation_rows, write_evaluation_outputs
+from rgca_baseline.integrity import (
+    assert_dataset_allowed,
+    assert_suite_allowed,
+    jsonl_fingerprint,
+    validate_study_records,
+)
 from rgca_baseline.io_utils import read_jsonl, write_json
 from rgca_baseline.pipeline import load_studies, run_pipeline
 
@@ -37,6 +43,12 @@ def parse_args() -> argparse.Namespace:
         "--overwrite",
         action="store_true",
         help="Replace existing output directories for selected experiments.",
+    )
+    parser.add_argument(
+        "--execution-mode",
+        choices=["debug", "stress", "real"],
+        default="debug",
+        help="Integrity mode. real blocks mock/stress/debug backends.",
     )
     return parser.parse_args()
 
@@ -135,6 +147,10 @@ def main() -> None:
     output_dir = Path(args.output_dir or config["output_dir"])
     if not input_path.exists():
         raise SystemExit(f"Input study JSONL does not exist: {input_path}")
+    try:
+        assert_dataset_allowed(input_path, args.execution_mode)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
     selected = set(args.only or [])
     experiments = [
@@ -146,7 +162,13 @@ def main() -> None:
         found = {experiment["name"] for experiment in experiments}
         raise SystemExit(f"Unknown experiment names requested: {sorted(selected - found)}")
 
-    studies_by_id = {study.study_id: study for study in load_studies(input_path)}
+    experiment_tiers = assert_suite_allowed(experiments, args.execution_mode)
+    studies = load_studies(input_path)
+    dataset_validation = validate_study_records(studies)
+    if not dataset_validation["valid"]:
+        raise SystemExit(f"Invalid study dataset: {json.dumps(dataset_validation, indent=2)}")
+
+    studies_by_id = {study.study_id: study for study in studies}
     output_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
@@ -166,6 +188,10 @@ def main() -> None:
         "suite_name": config["suite_name"],
         "config_path": str(config_path),
         "input_path": str(input_path),
+        "execution_mode": args.execution_mode,
+        "dataset_fingerprint": jsonl_fingerprint(input_path),
+        "dataset_validation": dataset_validation,
+        "experiment_tiers": experiment_tiers,
         "output_dir": str(output_dir),
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "notes": config.get("notes", ""),

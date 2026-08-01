@@ -162,18 +162,48 @@ python3 scripts/evaluate_generations.py \
 For interactive experiment work, open:
 
 - [notebooks/baseline_experiment.ipynb](notebooks/baseline_experiment.ipynb)
+- [notebooks/kaggle_research_safe_baseline.ipynb](notebooks/kaggle_research_safe_baseline.ipynb)
 - [notebooks/kaggle_no_gcloud_baseline.ipynb](notebooks/kaggle_no_gcloud_baseline.ipynb)
 - [notebooks/kaggle_one_command_baseline.ipynb](notebooks/kaggle_one_command_baseline.ipynb)
 
 The notebook uses the same reusable code under `src/rgca_baseline/`, so you do not end up with notebook-only logic that is hard to maintain.
 
-For Kaggle, the most reliable path is the one-command bootstrap:
+For Kaggle, the safest path is the research-safe notebook. It assumes the dataset has not been set up yet, prepares the MIMIC pilot subset first, and blocks unsafe mock/demo runs from being treated as research results:
+
+- [docs/RESEARCH_SAFE_EXECUTION.md](docs/RESEARCH_SAFE_EXECUTION.md)
+
+Prepare the pilot subset from PhysioNet:
+
+```bash
+cd /kaggle/working/RGCA
+python scripts/kaggle_prepare_mimic_subset.py \
+  --physionet-user YOUR_PHYSIONET_USERNAME \
+  --work-dir /kaggle/working/physionet \
+  --output-dir /kaggle/working/rgca_pilot_500 \
+  --retrieval-limit 400 \
+  --eval-limit 100
+```
+
+Then run the guarded stress suite:
 
 ```bash
 cd /kaggle/working/RGCA
 python scripts/kaggle_bootstrap_baseline.py \
+  --subset-jsonl /kaggle/working/rgca_pilot_500/data/mimic_subset.jsonl \
+  --execution-mode stress \
   --output-dir /kaggle/working/rgca_experiments/mimic_pilot_baseline_v0 \
   --pilot-output-dir /kaggle/working/rgca_pilot_500 \
+  --overwrite
+```
+
+For a code-only smoke test, use debug mode explicitly:
+
+```bash
+cd /kaggle/working/RGCA
+python scripts/kaggle_bootstrap_baseline.py \
+  --execution-mode debug \
+  --allow-demo \
+  --output-dir /kaggle/working/rgca_experiments/demo_bootstrap \
   --overwrite
 ```
 
