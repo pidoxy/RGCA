@@ -168,7 +168,7 @@ For interactive experiment work, open:
 
 The notebook uses the same reusable code under `src/rgca_baseline/`, so you do not end up with notebook-only logic that is hard to maintain.
 
-For Kaggle, the safest path is the research-safe notebook. It assumes the dataset has not been set up yet, prepares the MIMIC pilot subset first, and blocks unsafe mock/demo runs from being treated as research results:
+For Kaggle, the safest path is the research-safe notebook. Run it from top to bottom. It automatically uses an attached private dataset if `mimic_subset.jsonl` is present; otherwise it prepares the MIMIC pilot subset from PhysioNet secrets, then runs the guarded baseline suite:
 
 - [docs/RESEARCH_SAFE_EXECUTION.md](docs/RESEARCH_SAFE_EXECUTION.md)
 

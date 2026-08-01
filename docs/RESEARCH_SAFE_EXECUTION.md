@@ -34,6 +34,14 @@ The repository demo dataset is blocked outside `debug` mode. This prevents toy o
 
 ## Kaggle Setup From Zero
 
+The main notebook is:
+
+```text
+notebooks/kaggle_research_safe_baseline.ipynb
+```
+
+Run it from top to bottom. It automatically detects an attached private Kaggle dataset containing `mimic_subset.jsonl`; if none is attached, it prepares the pilot subset from PhysioNet credentials.
+
 Start from a fresh Kaggle notebook with no attached input. Clone the repo and install it:
 
 ```bash
