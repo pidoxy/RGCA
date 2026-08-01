@@ -31,6 +31,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--labels", help="Optional path to CheXpert/NegBio labels CSV(.gz).")
     parser.add_argument("--output-dir", default="/kaggle/working/rgca_pilot")
     parser.add_argument("--limit", type=int, default=100)
+    parser.add_argument(
+        "--retrieval-limit",
+        type=int,
+        help="Number of train studies to reserve for the retrieval pool. Defaults to 80 percent of --limit.",
+    )
+    parser.add_argument(
+        "--eval-limit",
+        type=int,
+        help="Number of validation/test studies to reserve for evaluation. Defaults to the remainder of --limit.",
+    )
     parser.add_argument("--top-k", type=int, default=3)
     parser.add_argument(
         "--retriever",
@@ -58,6 +68,89 @@ def require_path(value: str | None, name: str) -> str:
     return value
 
 
+def balanced_limits(total_limit: int, retrieval_limit: int | None, eval_limit: int | None) -> tuple[int, int]:
+    if retrieval_limit is not None and eval_limit is not None:
+        return retrieval_limit, eval_limit
+    if retrieval_limit is not None:
+        return retrieval_limit, max(total_limit - retrieval_limit, 1)
+    if eval_limit is not None:
+        return max(total_limit - eval_limit, 1), eval_limit
+
+    eval_count = max(round(total_limit * 0.2), 1)
+    retrieval_count = max(total_limit - eval_count, 1)
+    return retrieval_count, eval_count
+
+
+def build_balanced_mimic_subset(args: argparse.Namespace) -> list:
+    metadata = require_path(args.metadata, "--metadata")
+    split = require_path(args.split, "--split")
+    reports_root = require_path(args.reports_root, "--reports-root")
+    images_root = require_path(args.images_root, "--images-root")
+    views = {view.upper() for view in args.views}
+    requested_splits = {split_name.lower() for split_name in args.dataset_splits}
+
+    if {"train", "validate"}.issubset(requested_splits):
+        retrieval_limit, eval_limit = balanced_limits(
+            args.limit,
+            args.retrieval_limit,
+            args.eval_limit,
+        )
+        retrieval_records = build_mimic_subset(
+            metadata_path=metadata,
+            split_path=split,
+            report_root=reports_root,
+            image_root=images_root,
+            label_path=args.labels,
+            allowed_splits={"train"},
+            allowed_views=views,
+            limit=retrieval_limit,
+        )
+        eval_records = build_mimic_subset(
+            metadata_path=metadata,
+            split_path=split,
+            report_root=reports_root,
+            image_root=images_root,
+            label_path=args.labels,
+            allowed_splits={"validate"},
+            allowed_views=views,
+            limit=eval_limit,
+        )
+        return retrieval_records + eval_records
+
+    return build_mimic_subset(
+        metadata_path=metadata,
+        split_path=split,
+        report_root=reports_root,
+        image_root=images_root,
+        label_path=args.labels,
+        allowed_splits=requested_splits,
+        allowed_views=views,
+        limit=args.limit,
+    )
+
+
+def require_pipeline_outputs(baseline_dir: Path, summary: dict) -> None:
+    required_files = [
+        baseline_dir / "retrieval_results.jsonl",
+        baseline_dir / "mismatch_results.jsonl",
+        baseline_dir / "generations_no_retrieval.jsonl",
+        baseline_dir / "generations_retrieval.jsonl",
+        baseline_dir / "generations_mismatch.jsonl",
+    ]
+    missing = [str(path) for path in required_files if not path.exists()]
+    if not missing:
+        return
+
+    raise SystemExit(
+        "Baseline pilot did not produce all expected outputs.\n"
+        f"Pipeline summary: {json.dumps(summary, indent=2)}\n"
+        f"Missing files: {json.dumps(missing, indent=2)}\n\n"
+        "Most common cause: the subset contains no eval studies. "
+        "Use both train and validate splits, or pass explicit "
+        "--retrieval-limit and --eval-limit values."
+    )
+
+
 def main() -> None:
     args = parse_args()
     output_dir = Path(args.output_dir)
@@ -70,16 +163,7 @@ def main() -> None:
         subset_path = Path(args.subset_jsonl)
     else:
         subset_path = data_dir / "mimic_subset.jsonl"
-        studies = build_mimic_subset(
-            metadata_path=require_path(args.metadata, "--metadata"),
-            split_path=require_path(args.split, "--split"),
-            report_root=require_path(args.reports_root, "--reports-root"),
-            image_root=require_path(args.images_root, "--images-root"),
-            label_path=args.labels,
-            allowed_splits={split_name for split_name in args.dataset_splits},
-            allowed_views={view.upper() for view in args.views},
-            limit=args.limit,
-        )
+        studies = build_balanced_mimic_subset(args)
         write_study_records(subset_path, studies)
 
     summary = run_pipeline(
@@ -89,6 +173,7 @@ def main() -> None:
         top_k=args.top_k,
         retriever_backend=args.retriever,
     )
+    require_pipeline_outputs(baseline_dir, summary)
 
     studies = {study.study_id: study for study in load_studies(subset_path)}
     generation_rows = read_jsonl(baseline_dir / "generations_mismatch.jsonl")

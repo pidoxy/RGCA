@@ -111,6 +111,24 @@ python scripts/kaggle_run_pilot.py \
 
 Start with `--limit 50` or `--limit 100`. Do not start with the full dataset.
 
+By default, `--limit 100` builds a balanced pilot:
+
+```text
+80 train studies -> retrieval_pool
+20 validate studies -> eval
+```
+
+If you want explicit control, use:
+
+```bash
+python scripts/kaggle_run_pilot.py \
+  ... \
+  --retrieval-limit 80 \
+  --eval-limit 20
+```
+
+The baseline needs both groups. If the subset contains only `retrieval_pool` records, retrieval files can be written but generation files will be missing because there are no target studies to evaluate.
+
 ## Expected Outputs
 
 The script writes:
@@ -156,4 +174,3 @@ manual review of 20 mismatch cases
 ```
 
 If GPU becomes available, replace the mock generator with a real VLM backend for only the same 50 to 100 studies.
-
