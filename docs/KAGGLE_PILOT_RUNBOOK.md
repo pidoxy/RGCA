@@ -152,6 +152,59 @@ python scripts/kaggle_run_pilot.py \
 
 This backend is intentionally not a clinical model. It copies detected pathology labels from retrieved reports into the generated report when those labels are absent from the target labels. Use it to validate that the mismatch protocol and retrieval-induced hallucination metric can detect the failure mode before spending GPU time on a real VLM.
 
+## Recommended Structured Experiment Suite
+
+Once `/kaggle/working/rgca_pilot_500/data/mimic_subset.jsonl` exists, stop running one-off commands and run the planned suite:
+
+```bash
+cd /kaggle/working/RGCA
+python scripts/run_experiment_suite.py \
+  --config configs/mimic_pilot_suite.json \
+  --overwrite
+```
+
+This runs:
+
+```text
+E00_pipeline_mock_lexical_k3
+E01_stress_lexical_k1
+E02_stress_lexical_k3
+E03_stress_lexical_k5
+E04_stress_hashing_text_k3
+E05_stress_mock_image_k3
+```
+
+The suite writes:
+
+```text
+/kaggle/working/rgca_experiments/mimic_pilot_baseline_v0/
+  suite_manifest.json
+  E00_pipeline_mock_lexical_k3/
+  E01_stress_lexical_k1/
+  E02_stress_lexical_k3/
+  E03_stress_lexical_k5/
+  E04_stress_hashing_text_k3/
+  E05_stress_mock_image_k3/
+```
+
+If your subset path is different:
+
+```bash
+python scripts/run_experiment_suite.py \
+  --config configs/mimic_pilot_suite.json \
+  --input /kaggle/working/your_subset/data/mimic_subset.jsonl \
+  --output-dir /kaggle/working/rgca_experiments/mimic_pilot_baseline_v0 \
+  --overwrite
+```
+
+Create paper-friendly summary tables:
+
+```bash
+python scripts/summarize_experiment_suite.py \
+  --manifest /kaggle/working/rgca_experiments/mimic_pilot_baseline_v0/suite_manifest.json \
+  --output-dir /kaggle/working/rgca_experiments/mimic_pilot_baseline_v0/tables
+```
+
 ## Expected Outputs
 
 The script writes:

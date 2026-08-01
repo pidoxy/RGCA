@@ -161,7 +161,7 @@ python3 scripts/evaluate_generations.py \
 
 For interactive experiment work, open:
 
-- [notebooks/baseline_experiment.ipynb](/Users/mac/Documents/New%20project/RGCA/notebooks/baseline_experiment.ipynb)
+- [notebooks/baseline_experiment.ipynb](notebooks/baseline_experiment.ipynb)
 
 The notebook uses the same reusable code under `src/rgca_baseline/`, so you do not end up with notebook-only logic that is hard to maintain.
 
@@ -200,6 +200,17 @@ python scripts/kaggle_run_pilot.py \
   --top-k 3
 ```
 
+After the pilot subset is created, run the structured experiment suite instead of running one-off cells:
+
+```bash
+cd /kaggle/working/RGCA
+python scripts/run_experiment_suite.py \
+  --config configs/mimic_pilot_suite.json \
+  --overwrite
+```
+
+This writes one folder per named experiment plus a top-level `suite_manifest.json`.
+
 ## Real-Data Path
 
 The repository now includes a MIMIC-CXR ingestion path:
@@ -221,7 +232,7 @@ This creates a study-level JSONL that the baseline pipeline can use.
 
 The dataset and retrieval investigation notes live in:
 
-- [docs/MIMIC_SETUP.md](/Users/mac/Documents/New%20project/RGCA/docs/MIMIC_SETUP.md:1)
+- [docs/MIMIC_SETUP.md](docs/MIMIC_SETUP.md)
 
 ## Current Backend
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rgca_baseline.evaluation import infer_labels_from_text
+from rgca_baseline.evaluation import infer_labels_from_text, normalize_labels
 from rgca_baseline.io_utils import read_jsonl, write_json, write_jsonl
 from rgca_baseline.prompts import build_prompt
 from rgca_baseline.real_retrieval import create_retriever_backend, get_retrieval_plan
@@ -65,7 +65,8 @@ def run_pipeline(
                 retrieved_reports=retrieved_reports,
             )
             generated_labels = infer_labels_from_text(generated_report)
-            hallucination_flags = sorted(set(generated_labels) - set(study.labels))
+            reference_labels = normalize_labels(study.labels)
+            hallucination_flags = sorted(set(generated_labels) - set(reference_labels))
             generations_by_mode[current_mode].append(
                 GenerationResult(
                     study_id=study.study_id,
@@ -75,7 +76,7 @@ def run_pipeline(
                     retrieved_reports=retrieved_reports,
                     generated_report=generated_report,
                     retrieved_studies=retrieved_ids,
-                    labels_reference=study.labels,
+                    labels_reference=reference_labels,
                     labels_generated=generated_labels,
                     hallucination_flags=hallucination_flags,
                     retriever_backend=retriever_backend,

@@ -1,0 +1,56 @@
+{
+  "suite_name": "mimic_pilot_baseline_v0",
+  "input_path": "/kaggle/working/rgca_pilot_500/data/mimic_subset.jsonl",
+  "output_dir": "/kaggle/working/rgca_experiments/mimic_pilot_baseline_v0",
+  "notes": "First structured baseline suite. Uses one fixed MIMIC pilot subset and runs pipeline validation plus controlled retrieval-copy stress tests.",
+  "experiments": [
+    {
+      "name": "E00_pipeline_mock_lexical_k3",
+      "mode": "all",
+      "retriever": "lexical",
+      "generator": "mock",
+      "top_k": 3,
+      "purpose": "Validate the full artifact pipeline without making scientific claims."
+    },
+    {
+      "name": "E01_stress_lexical_k1",
+      "mode": "all",
+      "retriever": "lexical",
+      "generator": "retrieval_copy_stress",
+      "top_k": 1,
+      "purpose": "Controlled mismatch stress test with one retrieved report."
+    },
+    {
+      "name": "E02_stress_lexical_k3",
+      "mode": "all",
+      "retriever": "lexical",
+      "generator": "retrieval_copy_stress",
+      "top_k": 3,
+      "purpose": "Controlled mismatch stress test with the default top-k setting."
+    },
+    {
+      "name": "E03_stress_lexical_k5",
+      "mode": "all",
+      "retriever": "lexical",
+      "generator": "retrieval_copy_stress",
+      "top_k": 5,
+      "purpose": "Top-k ablation to test whether more retrieved evidence increases copied unsupported findings."
+    },
+    {
+      "name": "E04_stress_hashing_text_k3",
+      "mode": "all",
+      "retriever": "hashing_text",
+      "generator": "retrieval_copy_stress",
+      "top_k": 3,
+      "purpose": "Dependency-light embedding-style retrieval comparison against lexical retrieval."
+    },
+    {
+      "name": "E05_stress_mock_image_k3",
+      "mode": "all",
+      "retriever": "mock_image",
+      "generator": "retrieval_copy_stress",
+      "top_k": 3,
+      "purpose": "Image-like retrieval path smoke test before real image embeddings."
+    }
+  ]
+}
