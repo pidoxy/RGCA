@@ -7,7 +7,7 @@ from rgca_baseline.io_utils import read_jsonl, write_json, write_jsonl
 from rgca_baseline.prompts import build_prompt
 from rgca_baseline.real_retrieval import create_retriever_backend, get_retrieval_plan
 from rgca_baseline.schemas import GenerationResult, StudyRecord
-from rgca_baseline.vlm_client import MockVLMClient
+from rgca_baseline.vlm_client import create_vlm_client
 
 
 def load_studies(path: str | Path) -> list[StudyRecord]:
@@ -27,7 +27,7 @@ def run_pipeline(
     eval_studies = [study for study in studies if study.split == "eval"]
 
     retriever = create_retriever_backend(retriever_backend, retrieval_pool)
-    generator = MockVLMClient()
+    generator = create_vlm_client(generator_backend)
     output_root = Path(output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 

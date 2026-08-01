@@ -48,6 +48,12 @@ def parse_args() -> argparse.Namespace:
         default="lexical",
     )
     parser.add_argument(
+        "--generator",
+        choices=["mock", "retrieval_copy_stress"],
+        default="mock",
+        help="Generator backend. Use retrieval_copy_stress for a controlled retrieval-copy stress test.",
+    )
+    parser.add_argument(
         "--dataset-splits",
         nargs="*",
         default=["train", "validate"],
@@ -172,6 +178,7 @@ def main() -> None:
         mode="all",
         top_k=args.top_k,
         retriever_backend=args.retriever,
+        generator_backend=args.generator,
     )
     require_pipeline_outputs(baseline_dir, summary)
 

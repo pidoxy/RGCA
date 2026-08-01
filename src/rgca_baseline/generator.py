@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from rgca_baseline.evaluation import infer_labels_from_text
 from rgca_baseline.schemas import StudyRecord
 
 
@@ -45,3 +46,44 @@ class MockVLMGenerator:
             return format_report(findings, impression)
 
         raise ValueError(f"Unsupported generation mode: {mode}")
+
+
+class RetrievalCopyStressGenerator:
+    """
+    Deterministic stress-test generator for retrieval-induced hallucination.
+
+    It intentionally injects pathology labels found in retrieved reports but absent
+    from the reference labels. This is not a clinical model; it is a controlled
+    failure-mode probe for validating the mismatch evaluation protocol.
+    """
+
+    def generate(self, study: StudyRecord, mode: str, retrieved_reports: list[str]) -> str:
+        if mode == "no_retrieval":
+            return format_report(study.findings, study.impression)
+
+        retrieved_labels = sorted(
+            {
+                label
+                for report in retrieved_reports
+                for label in infer_labels_from_text(report)
+            }
+        )
+        unsupported_labels = [
+            label for label in retrieved_labels if label.lower() not in {item.lower() for item in study.labels}
+        ]
+
+        findings = study.findings
+        impression = study.impression
+        if mode == "retrieval":
+            copied_labels = unsupported_labels[:1]
+        elif mode == "mismatch":
+            copied_labels = unsupported_labels
+        else:
+            raise ValueError(f"Unsupported generation mode: {mode}")
+
+        if copied_labels:
+            copied_text = ", ".join(copied_labels)
+            findings = f"{findings} Retrieved evidence also suggests {copied_text}."
+            impression = f"{impression} Retrieval-conditioned impression includes {copied_text}."
+
+        return format_report(findings, impression)

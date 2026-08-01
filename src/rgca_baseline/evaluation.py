@@ -15,12 +15,20 @@ LABEL_PATTERNS = {
 }
 
 
+def normalize_label(label: str) -> str:
+    return label.strip().lower()
+
+
+def normalize_labels(labels: list[str]) -> list[str]:
+    return sorted({normalize_label(label) for label in labels if label.strip()})
+
+
 def infer_labels_from_text(text: str) -> list[str]:
     lowered = text.lower()
     labels = []
     for label, patterns in LABEL_PATTERNS.items():
         if any(pattern in lowered for pattern in patterns):
-            labels.append(label)
+            labels.append(normalize_label(label))
     return sorted(set(labels))
 
 
@@ -41,14 +49,14 @@ def evaluate_generation_rows(
         study = studies_by_id[row["study_id"]]
         generated_labels = infer_labels_from_text(row["generated_report"])
         retrieval_row = retrieval_rows_by_target.get(row["study_id"], {})
-        retrieved_labels = sorted(
-            {
+        retrieved_labels = normalize_labels(
+            [
                 label
                 for labels in retrieval_row.get("retrieved_labels", [])
                 for label in labels
-            }
+            ]
         )
-        reference_labels = sorted(set(study.labels))
+        reference_labels = normalize_labels(study.labels)
         hallucinated = sorted(set(generated_labels) - set(reference_labels))
         retrieval_induced = sorted(set(hallucinated) & set(retrieved_labels))
         copied = sorted(set(generated_labels) & set(retrieved_labels))

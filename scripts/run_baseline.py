@@ -29,6 +29,12 @@ def parse_args() -> argparse.Namespace:
         choices=["lexical", "mock_image", "hashing_text"],
         help="Retriever backend to use.",
     )
+    parser.add_argument(
+        "--generator",
+        default="mock",
+        choices=["mock", "retrieval_copy_stress"],
+        help="Generator backend to use.",
+    )
     return parser.parse_args()
 
 
@@ -40,6 +46,7 @@ def main() -> None:
         mode=args.mode,
         top_k=args.top_k,
         retriever_backend=args.retriever,
+        generator_backend=args.generator,
     )
     print("Baseline run complete.")
     print(summary)

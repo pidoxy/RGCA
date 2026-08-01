@@ -129,6 +129,29 @@ python scripts/kaggle_run_pilot.py \
 
 The baseline needs both groups. If the subset contains only `retrieval_pool` records, retrieval files can be written but generation files will be missing because there are no target studies to evaluate.
 
+## Controlled Retrieval-Copy Stress Test
+
+After the default mock run succeeds, run a controlled stress test:
+
+```bash
+cd /kaggle/working/RGCA
+python scripts/kaggle_run_pilot.py \
+  --metadata /kaggle/input/rgca-mimic-pilot/mimic-cxr-jpg/files/mimic-cxr-2.0.0-metadata.csv.gz \
+  --split /kaggle/input/rgca-mimic-pilot/mimic-cxr-jpg/files/mimic-cxr-2.0.0-split.csv.gz \
+  --labels /kaggle/input/rgca-mimic-pilot/mimic-cxr-jpg/files/mimic-cxr-2.0.0-chexpert.csv.gz \
+  --reports-root /kaggle/input/rgca-mimic-pilot/mimic-cxr/files \
+  --images-root /kaggle/input/rgca-mimic-pilot/mimic-cxr-jpg/files \
+  --output-dir /kaggle/working/rgca_pilot_500_stress \
+  --limit 500 \
+  --retrieval-limit 400 \
+  --eval-limit 100 \
+  --retriever lexical \
+  --generator retrieval_copy_stress \
+  --top-k 3
+```
+
+This backend is intentionally not a clinical model. It copies detected pathology labels from retrieved reports into the generated report when those labels are absent from the target labels. Use it to validate that the mismatch protocol and retrieval-induced hallucination metric can detect the failure mode before spending GPU time on a real VLM.
+
 ## Expected Outputs
 
 The script writes:
