@@ -31,15 +31,17 @@ Kaggle wrote the experiment outputs to:
 
 ```text
 /kaggle/working/rgca_experiments/mimic_pilot_baseline_v0
-/kaggle/working/rgca_private_dataset.zip
+/kaggle/working/mimic_pilot_baseline_v0.zip
 ```
 
 The zip artifact was confirmed to exist:
 
 ```text
-/kaggle/working/rgca_private_dataset.zip
-size: 0.858 MB
+/kaggle/working/mimic_pilot_baseline_v0.zip
+size: 0.732 MB
 ```
+
+Execution note: the Kaggle notebook frontend showed a temporary cell-bootstrap race condition during interactive execution. The same pipeline was run successfully through the Kaggle notebook console inside the active session, using the attached private dataset and writing outputs to the same `/kaggle/working` artifact paths.
 
 ## Results
 
