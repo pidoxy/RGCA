@@ -165,6 +165,41 @@ For interactive experiment work, open:
 
 The notebook uses the same reusable code under `src/rgca_baseline/`, so you do not end up with notebook-only logic that is hard to maintain.
 
+## Kaggle Pilot Workflow
+
+Kaggle is the recommended first compute environment for the workshop pilot. Use it to run a small MIMIC-CXR subset and save a reproducible evidence bundle.
+
+See:
+
+- [docs/KAGGLE_PILOT_RUNBOOK.md](docs/KAGGLE_PILOT_RUNBOOK.md)
+
+If you already have a private Kaggle dataset with `mimic_subset.jsonl`:
+
+```bash
+cd /kaggle/working/RGCA
+python scripts/kaggle_run_pilot.py \
+  --subset-jsonl /kaggle/input/rgca-mimic-pilot/mimic_subset.jsonl \
+  --output-dir /kaggle/working/rgca_pilot \
+  --retriever lexical \
+  --top-k 3
+```
+
+If you attached MIMIC metadata, reports, and JPG files:
+
+```bash
+cd /kaggle/working/RGCA
+python scripts/kaggle_run_pilot.py \
+  --metadata /kaggle/input/rgca-mimic-pilot/mimic-cxr-jpg/files/mimic-cxr-2.0.0-metadata.csv.gz \
+  --split /kaggle/input/rgca-mimic-pilot/mimic-cxr-jpg/files/mimic-cxr-2.0.0-split.csv.gz \
+  --labels /kaggle/input/rgca-mimic-pilot/mimic-cxr-jpg/files/mimic-cxr-2.0.0-chexpert.csv.gz \
+  --reports-root /kaggle/input/rgca-mimic-pilot/mimic-cxr/files \
+  --images-root /kaggle/input/rgca-mimic-pilot/mimic-cxr-jpg/files \
+  --output-dir /kaggle/working/rgca_pilot \
+  --limit 100 \
+  --retriever lexical \
+  --top-k 3
+```
+
 ## Real-Data Path
 
 The repository now includes a MIMIC-CXR ingestion path:
