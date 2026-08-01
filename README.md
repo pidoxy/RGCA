@@ -163,15 +163,21 @@ For the first real image-retrieval run on Kaggle GPU, install optional dependenc
 ```bash
 pip install open_clip_torch pillow
 
-python scripts/run_retrieval_validation.py \
+python scripts/kaggle_hydrate_mimic_images.py \
   --subset /kaggle/input/datasets/emmapi/rgca-private-dataset/mimic_subset.jsonl \
+  --physionet-user "$PHYSIONET_USERNAME" \
+  --output-root /kaggle/working/physionet/mimic-cxr-jpg/files \
+  --updated-subset /kaggle/working/rgca_hydrated_subset/mimic_subset.jsonl
+
+python scripts/run_retrieval_validation.py \
+  --subset /kaggle/working/rgca_hydrated_subset/mimic_subset.jsonl \
   --backend biomedclip \
   --output-dir /kaggle/working/rgca_experiments/biomedclip_retrieval_validation_v0 \
   --top-k 3 \
   --eval-limit 20
 ```
 
-`biomedclip` requires actual image files at each record's `image_path`. A metadata/report-only subset is enough for stress tests, but not enough for real image retrieval.
+`biomedclip` requires actual image files at each record's `image_path`. A metadata/report-only subset is enough for stress tests, but not enough for real image retrieval. The hydration step downloads only the pilot images referenced by `mimic_subset.jsonl`, not the full MIMIC-CXR-JPG archive.
 
 Evaluate generated outputs:
 

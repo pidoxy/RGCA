@@ -50,6 +50,24 @@ The private Kaggle dataset must include:
 
 The current metadata/report-only private dataset is enough for stress evidence, but not enough for BioMedCLIP image retrieval unless the referenced JPGs are also present.
 
+If the private Kaggle dataset has `mimic_subset.jsonl` but not JPGs, hydrate only the pilot images from PhysioNet:
+
+```bash
+cd /kaggle/working/RGCA
+python scripts/kaggle_hydrate_mimic_images.py \
+  --subset /kaggle/input/datasets/emmapi/rgca-private-dataset/mimic_subset.jsonl \
+  --physionet-user "$PHYSIONET_USERNAME" \
+  --output-root /kaggle/working/physionet/mimic-cxr-jpg/files \
+  --updated-subset /kaggle/working/rgca_hydrated_subset/mimic_subset.jsonl
+```
+
+This downloads only the referenced pilot JPGs, not the full 4.7 TB archive. It writes:
+
+```text
+/kaggle/working/rgca_hydrated_subset/mimic_subset.jsonl
+/kaggle/working/rgca_hydrated_subset/image_hydration_manifest.json
+```
+
 ## Retrieval-Only Validation
 
 Run a cheap first validation on 20 evaluation studies:
@@ -57,7 +75,7 @@ Run a cheap first validation on 20 evaluation studies:
 ```bash
 cd /kaggle/working/RGCA
 python scripts/run_retrieval_validation.py \
-  --subset /kaggle/input/datasets/emmapi/rgca-private-dataset/mimic_subset.jsonl \
+  --subset /kaggle/working/rgca_hydrated_subset/mimic_subset.jsonl \
   --backend biomedclip \
   --output-dir /kaggle/working/rgca_experiments/biomedclip_retrieval_validation_v0 \
   --top-k 3 \

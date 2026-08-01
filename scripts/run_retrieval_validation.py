@@ -55,18 +55,20 @@ def main() -> None:
     if not validation["valid"]:
         raise SystemExit(f"Invalid study dataset: {json.dumps(validation, indent=2)}")
 
+    retrieval_pool = [study for study in studies if study.split == "retrieval_pool"]
+    eval_studies = [study for study in studies if study.split == "eval"][: args.eval_limit]
+    used_studies = retrieval_pool + eval_studies
+
     if args.backend == "biomedclip" or args.require_images:
-        image_validation = validate_image_paths(studies)
+        image_validation = validate_image_paths(used_studies)
         if not image_validation["valid"]:
             raise SystemExit(
-                "Image files are required for this retrieval validation but some paths are missing:\n"
+                "Image files are required for this retrieval validation but some used paths are missing:\n"
                 f"{json.dumps(image_validation, indent=2)}"
             )
     else:
         image_validation = None
 
-    retrieval_pool = [study for study in studies if study.split == "retrieval_pool"]
-    eval_studies = [study for study in studies if study.split == "eval"][: args.eval_limit]
     retriever = create_retriever_backend(args.backend, retrieval_pool)
 
     output_dir = Path(args.output_dir)
@@ -87,6 +89,11 @@ def main() -> None:
         "dataset_fingerprint": jsonl_fingerprint(subset_path),
         "dataset_validation": validation,
         "image_validation": image_validation,
+        "image_validation_scope": {
+            "retrieval_pool": len(retrieval_pool),
+            "eval_queries": len(eval_studies),
+            "total_used_records": len(used_studies),
+        },
         "backend": args.backend,
         "retrieval_plan": get_retrieval_plan(args.backend).__dict__,
         "top_k": args.top_k,
