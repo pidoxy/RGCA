@@ -70,6 +70,10 @@ python -m pip install -e .
 
 If internet is disabled, upload the repo as a Kaggle dataset or notebook file instead of cloning.
 
+If Kaggle shows `No input attached` but you have access to the Google Cloud Storage bucket, follow:
+
+- [Kaggle + GCS Private Dataset Setup](KAGGLE_GCS_PRIVATE_DATASET.md)
+
 ## Option A: Run From Existing Subset JSONL
 
 Use this when you already have:

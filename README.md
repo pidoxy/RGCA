@@ -172,6 +172,7 @@ Kaggle is the recommended first compute environment for the workshop pilot. Use 
 See:
 
 - [docs/KAGGLE_PILOT_RUNBOOK.md](docs/KAGGLE_PILOT_RUNBOOK.md)
+- [docs/KAGGLE_GCS_PRIVATE_DATASET.md](docs/KAGGLE_GCS_PRIVATE_DATASET.md)
 
 If you already have a private Kaggle dataset with `mimic_subset.jsonl`:
 
