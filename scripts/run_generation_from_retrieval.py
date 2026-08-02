@@ -34,7 +34,13 @@ def parse_args() -> argparse.Namespace:
             "while comparing no-retrieval, clean-retrieval, and mismatch prompts."
         )
     )
-    parser.add_argument("--subset", required=True, help="Study subset JSONL path.")
+    parser.add_argument(
+        "--subset",
+        "--studies",
+        dest="subset",
+        required=True,
+        help="Study subset JSONL path. --studies is kept as a compatibility alias.",
+    )
     parser.add_argument("--retrieval-results", required=True, help="Clean retrieval JSONL artifact.")
     parser.add_argument("--mismatch-results", required=True, help="Mismatch retrieval JSONL artifact.")
     parser.add_argument("--output-dir", required=True, help="Output directory for generated reports/evaluation.")
@@ -53,6 +59,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model-id", help="HuggingFace model id for --generator hf_vlm.")
     parser.add_argument("--max-new-tokens", type=int, default=192)
     parser.add_argument("--limit", type=int, default=20, help="Maximum eval studies to generate.")
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        help=(
+            "Compatibility no-op. Top-k is already fixed inside retrieval_results.jsonl "
+            "and mismatch_results.jsonl for this generation-only runner."
+        ),
+    )
     parser.add_argument(
         "--require-real-generator",
         action="store_true",
@@ -155,6 +169,11 @@ def write_evaluation_bundle(
 
 def main() -> None:
     args = parse_args()
+    if args.top_k is not None:
+        print(
+            "[info] Ignoring --top-k because retrieval artifacts already contain the "
+            "retrieved reports for generation."
+        )
     if args.require_real_generator and args.generator != "hf_vlm":
         raise SystemExit("--require-real-generator blocks mock/stress generation. Use --generator hf_vlm.")
 
