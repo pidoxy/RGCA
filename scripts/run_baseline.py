@@ -32,9 +32,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--generator",
         default="mock",
-        choices=["mock", "retrieval_copy_stress"],
+        choices=["mock", "retrieval_copy_stress", "hf_vlm"],
         help="Generator backend to use.",
     )
+    parser.add_argument("--model-id", help="HuggingFace model id for --generator hf_vlm.")
+    parser.add_argument("--max-new-tokens", type=int, default=192)
     return parser.parse_args()
 
 
@@ -47,6 +49,8 @@ def main() -> None:
         top_k=args.top_k,
         retriever_backend=args.retriever,
         generator_backend=args.generator,
+        generator_model_id=args.model_id,
+        max_new_tokens=args.max_new_tokens,
     )
     print("Baseline run complete.")
     print(summary)

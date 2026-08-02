@@ -179,6 +179,24 @@ python scripts/run_retrieval_validation.py \
 
 `biomedclip` requires actual image files at each record's `image_path`. A metadata/report-only subset is enough for stress tests, but not enough for real image retrieval. The hydration step downloads only the pilot images referenced by `mimic_subset.jsonl`, not the full MIMIC-CXR-JPG archive.
 
+Generate reports from saved retrieval artifacts:
+
+```bash
+python3 scripts/run_generation_from_retrieval.py \
+  --subset /kaggle/working/rgca_hydrated_subset/mimic_subset.jsonl \
+  --retrieval-results /kaggle/working/rgca_experiments/biomedclip_retrieval_validation_v0/retrieval_results.jsonl \
+  --mismatch-results /kaggle/working/rgca_experiments/biomedclip_retrieval_validation_v0/mismatch_results.jsonl \
+  --output-dir /kaggle/working/rgca_experiments/real_generation_v0 \
+  --generator hf_vlm \
+  --model-id "$RGCA_VLM_MODEL_ID" \
+  --mode all \
+  --limit 20 \
+  --require-real-generator \
+  --require-images
+```
+
+For a cheap protocol check without GPU inference, use `--generator retrieval_copy_stress` and omit `--model-id`.
+
 Evaluate generated outputs:
 
 ```bash
@@ -197,6 +215,8 @@ For interactive experiment work, open:
 - [notebooks/kaggle_research_safe_baseline.ipynb](notebooks/kaggle_research_safe_baseline.ipynb)
 - [notebooks/kaggle_no_gcloud_baseline.ipynb](notebooks/kaggle_no_gcloud_baseline.ipynb)
 - [notebooks/kaggle_one_command_baseline.ipynb](notebooks/kaggle_one_command_baseline.ipynb)
+- [notebooks/kaggle_full_research_pipeline.ipynb](notebooks/kaggle_full_research_pipeline.ipynb)
+- [notebooks/kaggle_real_generation_milestone.ipynb](notebooks/kaggle_real_generation_milestone.ipynb)
 
 The notebook uses the same reusable code under `src/rgca_baseline/`, so you do not end up with notebook-only logic that is hard to maintain.
 
@@ -372,12 +392,14 @@ The clean replacement point is [src/rgca_baseline/retrieval.py](/Users/mac/Docum
 
 ### 3. Replace generation
 
-The current generator is a mock backend that simulates retrieval influence.
+The current default generator is a mock/stress backend that simulates retrieval influence.
 
-For the real baseline, replace it with a VLM call in [src/rgca_baseline/generator.py](/Users/mac/Documents/New%20project/RGCA/src/rgca_baseline/generator.py:1), for example:
+For the real baseline, use the `hf_vlm` backend in [src/rgca_baseline/vlm_client.py](/Users/mac/Documents/New%20project/RGCA/src/rgca_baseline/vlm_client.py:1), for example:
 
 - `LLaVA-Med`
 - another local HF-compatible medical VLM
+
+The recommended command path is `scripts/run_generation_from_retrieval.py`, because it keeps retrieval fixed while the generator changes.
 
 ### 4. Keep the same output contract
 
@@ -403,10 +425,10 @@ Those outputs are the evidence trail for your baseline.
 
 ## Immediate Next Steps
 
-1. Wire your real MIMIC-CXR subset into a JSONL file.
-2. Replace the retriever backend with image-based retrieval.
-3. Replace the mock generator with your chosen VLM.
-4. Add a simple hallucination review table from mismatch generations.
+1. Run the full Kaggle pipeline to produce hydrated MIMIC subset + BioMedCLIP retrieval artifacts.
+2. Run `scripts/run_generation_from_retrieval.py` with `--generator retrieval_copy_stress` as a protocol check.
+3. Set `RGCA_VLM_MODEL_ID` and rerun with `--generator hf_vlm --require-real-generator`.
+4. Compare clean retrieval vs mismatch using `retrieval_induced_hallucination_rate` and manual examples.
 
 ## Notes
 

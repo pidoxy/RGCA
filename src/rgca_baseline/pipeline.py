@@ -21,13 +21,19 @@ def run_pipeline(
     top_k: int,
     retriever_backend: str = "lexical",
     generator_backend: str = "mock",
+    generator_model_id: str | None = None,
+    max_new_tokens: int = 192,
 ) -> dict:
     studies = load_studies(input_path)
     retrieval_pool = [study for study in studies if study.split == "retrieval_pool"]
     eval_studies = [study for study in studies if study.split == "eval"]
 
     retriever = create_retriever_backend(retriever_backend, retrieval_pool)
-    generator = create_vlm_client(generator_backend)
+    generator = create_vlm_client(
+        generator_backend,
+        model_id=generator_model_id,
+        max_new_tokens=max_new_tokens,
+    )
     output_root = Path(output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
@@ -97,6 +103,8 @@ def run_pipeline(
         "top_k": top_k,
         "retriever_backend": retriever_backend,
         "generator_backend": generator_backend,
+        "generator_model_id": generator_model_id,
+        "max_new_tokens": max_new_tokens,
         "retrieval_plan": get_retrieval_plan(retriever_backend).__dict__,
         "retrieval_pool_size": len(retrieval_pool),
         "eval_size": len(eval_studies),
