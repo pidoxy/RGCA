@@ -71,7 +71,7 @@ class HuggingFaceVisionLanguageClient(BaseVLMClient):
         try:
             import torch
             from PIL import Image
-            from transformers import AutoModelForCausalLM, AutoModelForVision2Seq, AutoProcessor
+            from transformers import AutoModelForCausalLM, AutoProcessor
         except ImportError as exc:
             raise ImportError(
                 "The hf_vlm backend requires optional dependencies. Install them with:\n"
@@ -79,8 +79,19 @@ class HuggingFaceVisionLanguageClient(BaseVLMClient):
                 "or use a Kaggle notebook image that already includes PyTorch."
             ) from exc
 
+        try:
+            from transformers import AutoModelForVision2Seq
+        except ImportError:
+            AutoModelForVision2Seq = None
+
+        try:
+            from transformers import LlavaForConditionalGeneration
+        except ImportError:
+            LlavaForConditionalGeneration = None
+
         self.torch = torch
         self.image_cls = Image
+        self.model_id = model_id
         self.processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=trust_remote_code)
         model_kwargs = {
             "device_map": device_map,
@@ -91,13 +102,43 @@ class HuggingFaceVisionLanguageClient(BaseVLMClient):
         else:
             model_kwargs["torch_dtype"] = "auto"
 
-        try:
-            self.model = AutoModelForVision2Seq.from_pretrained(model_id, **model_kwargs)
-        except (ValueError, OSError):
+        model_id_lower = model_id.lower()
+        if "llava" in model_id_lower and LlavaForConditionalGeneration is not None:
+            self.model = LlavaForConditionalGeneration.from_pretrained(model_id, **model_kwargs)
+        elif AutoModelForVision2Seq is not None:
+            try:
+                self.model = AutoModelForVision2Seq.from_pretrained(model_id, **model_kwargs)
+            except (ValueError, OSError):
+                self.model = AutoModelForCausalLM.from_pretrained(model_id, **model_kwargs)
+        else:
             self.model = AutoModelForCausalLM.from_pretrained(model_id, **model_kwargs)
 
-        self.model_id = model_id
         self.max_new_tokens = max_new_tokens
+
+    def _format_prompt(self, prompt: str) -> str:
+        if "llava" not in self.model_id.lower():
+            return prompt
+
+        conversation = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ]
+        if hasattr(self.processor, "apply_chat_template"):
+            try:
+                return self.processor.apply_chat_template(
+                    conversation,
+                    add_generation_prompt=True,
+                    tokenize=False,
+                )
+            except Exception:
+                pass
+
+        return f"USER: <image>\n{prompt}\nASSISTANT:"
 
     def generate_report(
         self,
@@ -111,12 +152,18 @@ class HuggingFaceVisionLanguageClient(BaseVLMClient):
             raise FileNotFoundError(f"Image required by hf_vlm backend is missing: {image_path}")
 
         image = self.image_cls.open(image_path).convert("RGB")
-        inputs = self.processor(text=prompt, images=image, return_tensors="pt")
+        formatted_prompt = self._format_prompt(prompt)
+        inputs = self.processor(text=formatted_prompt, images=image, return_tensors="pt")
         inputs = {key: value.to(self.model.device) for key, value in inputs.items()}
 
         with self.torch.inference_mode():
             output_ids = self.model.generate(**inputs, max_new_tokens=self.max_new_tokens)
 
+        input_length = inputs["input_ids"].shape[-1] if "input_ids" in inputs else 0
+        generated_ids = output_ids[:, input_length:] if input_length else output_ids
+        text = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
+        if text:
+            return text
         return self.processor.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 
 
