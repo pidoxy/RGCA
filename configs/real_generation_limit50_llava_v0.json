@@ -1,0 +1,40 @@
+{
+  "experiment_name": "real_generation_limit50_llava_v0",
+  "purpose": "Scale the first real VLM baseline from 20 to 50 evaluation studies while keeping the dataset, retrieval artifacts, and generator fixed.",
+  "dataset": {
+    "name": "MIMIC-CXR pilot subset",
+    "subset_path": "/kaggle/working/rgca_hydrated_subset/mimic_subset.jsonl",
+    "subset_rows": 500,
+    "retrieval_pool": 400,
+    "eval_pool": 100,
+    "sha256": "89187a1df84a81506e12762505722a703f4ae916cc05cdb7c86c91d2ef69f3b1"
+  },
+  "retrieval_artifacts": {
+    "retrieval_results": "/kaggle/working/rgca_experiments/biomedclip_retrieval_validation_v0/retrieval_results.jsonl",
+    "mismatch_results": "/kaggle/working/rgca_experiments/biomedclip_retrieval_validation_v0/mismatch_results.jsonl"
+  },
+  "generation": {
+    "backend": "hf_vlm",
+    "model_id": "llava-hf/llava-1.5-7b-hf",
+    "mode": "all",
+    "limit": 50,
+    "max_new_tokens": 192,
+    "require_real_generator": true,
+    "require_images": true
+  },
+  "outputs": {
+    "output_dir": "/kaggle/working/rgca_experiments/real_generation_limit50_llava_v0",
+    "evidence_zip": "/kaggle/working/rgca_real_generation_evidence_limit50_llava_v0.zip"
+  },
+  "success_criteria": [
+    "generation_manifest.json exists",
+    "generator_backend is hf_vlm",
+    "model_id is llava-hf/llava-1.5-7b-hf",
+    "eval_size is 50",
+    "missing_image_count is 0",
+    "generations_no_retrieval.jsonl has 50 rows",
+    "generations_retrieval.jsonl has 50 rows",
+    "generations_mismatch.jsonl has 50 rows",
+    "evaluation summaries exist for all three modes"
+  ]
+}
