@@ -1,14 +1,165 @@
-\documentclass{article}
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
 
 \begin{document}
 
-\title{RGCA}
-\author{}
+\title{Retrieval-Guided Cross-Attention for Reducing Retrieval-Induced Hallucination in Chest X-ray Report Generation}
+\author{Emmanuel Idoko}
 \date{}
 \maketitle
 
+\begin{abstract}
+Retrieval-augmented vision-language models can improve chest X-ray report generation by providing similar prior reports as clinical context. However, retrieved reports are not always faithful to the target image. When retrieval is noisy, partially relevant, or clinically mismatched, a model may copy unsupported findings from retrieved evidence into the generated report. We study this failure mode as retrieval-induced hallucination: a generated clinical finding that is present in retrieved evidence but absent from the target reference report. Before implementing Retrieval-Guided Cross-Attention (RGCA), we construct a baseline pipeline over a MIMIC-CXR pilot subset using BioMedCLIP retrieval artifacts and LLaVA-style generation. The baseline compares image-only generation, prompt-based retrieval, and deliberately mismatched retrieval. In a 20-study real-generation pilot, prompt retrieval increased automatic hallucination flags compared with no retrieval, and manual review confirmed multiple strong or moderate cases where unsupported retrieved findings appeared in generated reports. These results motivate RGCA, a planned fusion module that aligns retrieved evidence with image tokens, gates retrieval at the report level, and uses gated cross-attention to condition visual representations before decoding.
+\end{abstract}
+
 \section{Introduction}
 
-Draft manuscript scaffold.
+Chest X-ray report generation is a high-stakes medical language generation task. A useful system must not only produce fluent radiology text, but also ensure that generated findings are grounded in the target image. This is difficult for medical vision-language models (VLMs) because they combine visual representations, language priors, and external context. When these signals conflict, the generated report may contain clinically meaningful findings that are not supported by the image.
+
+Retrieval-augmented generation is attractive in this setting because retrieved reports can provide examples of similar studies, common phrasing, and clinically relevant context. A target image can be embedded, used to retrieve top-k similar studies, and paired with their reports in the VLM prompt. This simple approach is easy to implement and often improves report fluency. The risk is that retrieved evidence may become an uncontrolled source of clinical content. If the retrieved reports mention pleural effusion, consolidation, cardiomegaly, or another finding that is absent from the target image, the model may still include that finding in its output.
+
+We call this failure mode retrieval-induced hallucination. A retrieval-induced hallucination occurs when a generated finding is present in retrieved evidence but absent from the target reference report. This is narrower than hallucination in general. The goal is not to solve every form of medical hallucination, but to isolate the specific failure caused by retrieval and then design a mechanism that reduces it.
+
+The core hypothesis is that retrieval should not merely be appended to the prompt. Instead, retrieved evidence should be aligned with image tokens, gated according to relevance, and allowed to influence generation only through a controlled visual grounding pathway. This motivates Retrieval-Guided Cross-Attention (RGCA), a proposed module that uses retrieved clinical evidence to modulate visual attention rather than providing raw text for the decoder to copy.
+
+\section{Related Work}
+
+\paragraph{Medical vision-language models.}
+Recent medical VLMs adapt general multimodal architectures to biomedical and clinical settings through image-text pretraining, instruction tuning, and domain-specific alignment. LLaVA-Med extends visual instruction tuning to biomedical images~\cite{li2023llavamed}, Med-Flamingo explores few-shot medical multimodal reasoning~\cite{moor2023medflamingo}, and CheXagent focuses on chest X-ray interpretation~\cite{chen2024chexagent}. BioMedCLIP provides biomedical image-text embeddings that are useful for retrieval and representation alignment~\cite{zhang2023biomedclip}. These systems show that clinical multimodal reasoning is feasible, but they do not fully solve image-grounded faithfulness.
+
+\paragraph{Retrieval-augmented generation.}
+Retrieval-augmented systems improve generation by adding external memory, similar cases, or relevant documents~\cite{borgeaud2022retro}. In clinical report generation, retrieved reports can help with structure, terminology, and disease-context priors. However, prompt concatenation gives the model access to useful information without explicitly controlling whether retrieved findings are supported by the target image.
+
+\paragraph{Hallucination and grounding.}
+Medical VLM hallucinations occur when a generated report includes findings that are not supported by the target image, reference report, or clinical evidence. Retrieval introduces an additional source of hallucination: a model may copy a finding because it appears in retrieved evidence, even when the target image does not support it.
+
+\section{Method}
+
+\subsection{Problem Definition}
+
+Let $x$ be a target chest X-ray image, $y_{ref}$ its reference radiology report, and $R(x)=\{r_1,\ldots,r_k\}$ the top-k retrieved reports. A report generator produces $y_{gen}$ under one of three conditions: no retrieval, prompt retrieval, or mismatched retrieval. A retrieval-induced hallucination occurs when a clinically meaningful finding $p$ appears in $y_{gen}$ and in at least one retrieved report, but is absent from $y_{ref}$.
+
+\subsection{Baseline Pipeline}
+
+The baseline compares three modes:
+
+\begin{enumerate}
+    \item \textbf{No retrieval:} the VLM receives the target image and a report-generation prompt only.
+    \item \textbf{Prompt retrieval:} the VLM receives the target image plus top-k retrieved reports.
+    \item \textbf{Mismatch retrieval:} the VLM receives the target image plus deliberately mismatched reports.
+\end{enumerate}
+
+The mismatch mode stress-tests whether the generator copies unsupported retrieved findings.
+
+\section{Method Overview}
+
+Figure~\ref{fig:rgca-overview} presents the high-level RGCA pipeline. The paper figure is intentionally algorithmic rather than implementation-heavy: image tokens and retrieved report tokens pass through an alignment module, then a retrieval gate, then the RGCA block, which produces grounded features for the decoder.
+
+\begin{figure}[h]
+\centering
+\fbox{\parbox{0.9\linewidth}{
+\centering
+Insert simplified RGCA overview figure here.
+}}
+\caption{High-level RGCA pipeline. A target chest X-ray retrieves top-k similar studies, aligns retrieved reports with image tokens, filters them through a retrieval gate, and produces grounded features for report generation.}
+\label{fig:rgca-overview}
+\end{figure}
+
+\subsection{Retrieval-Guided Cross-Attention}
+
+For a target image embedding $\bar{v}$ and retrieved report embedding $\bar{r}_k$, report-level alignment is computed as:
+
+\[
+\alpha_k = \cos(\bar{v}, \bar{r}_k)
+\]
+
+A learned gate decides how much each retrieved report can influence visual attention:
+
+\[
+g_k = \sigma(w_g^T[\bar{v};\bar{r}_k;\alpha_k] + b_g)
+\]
+
+The retrieved report tokens are then used as a gated memory for cross-attention. Image tokens act as queries, while retrieved-report tokens provide gated keys and values. The output is fused back into the visual stream using a residual connection:
+
+\[
+H = \mathrm{LayerNorm}(V + \lambda \cdot \mathrm{Attn})
+\]
+
+The design goal is for retrieval to guide visual grounding rather than to become text that the decoder copies directly.
+
+\section{Experimental Setup}
+
+\subsection{Dataset and Retrieval Setup}
+
+The primary dataset is MIMIC-CXR with MIMIC-CXR-JPG~\cite{johnson2019mimiccxr}. Access is through PhysioNet and requires a credentialed account, required CITI training, and acceptance of the data-use agreement. MIMIC-CXR provides free-text reports, while MIMIC-CXR-JPG provides image files and metadata.
+
+The current pilot uses 500 studies: 400 studies for the retrieval pool and 100 studies for the evaluation pool. The current frozen real-generation run evaluates 20 studies. The retrieval index is study-level. Each indexed item stores study ID, image path, report text, findings, impression, labels, and split. The final retrieval strategy is image-text embedding similarity: the target image is embedded and used to retrieve similar study embeddings, then the retrieved study reports are passed to the generator.
+
+\subsection{Generator and Evaluation}
+
+The current real-generation milestone uses \texttt{llava-hf/llava-1.5-7b-hf} through the repository's \texttt{hf\_vlm} backend. The primary baseline metric is retrieval-induced hallucination rate. Because rule-based matching can over-count negated findings, all flagged rows from the pilot were manually reviewed.
+
+\section{Results}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Condition & n & Hallucination Rate & RIH Rate & Retrieval Copy Rate \\
+\midrule
+No Retrieval & 20 & 0.00 & 0.00 & 0.00 \\
+Prompt Retrieval & 20 & 0.85 & 0.35 & 0.45 \\
+Mismatch Retrieval & 20 & 0.95 & 0.25 & 0.25 \\
+\bottomrule
+\end{tabular}
+\caption{Pilot real-generation results from the frozen 20-study LLaVA run. RIH denotes retrieval-induced hallucination. These automatic metrics are interpreted alongside manual review because the current evaluator is sensitive to negation artifacts.}
+\label{tab:pilot-results}
+\end{table}
+
+Manual review was performed across 28 flagged retrieval and mismatch rows. Seven rows provided strong evidence of retrieval-induced hallucination and five provided moderate evidence. The strongest cases involved target reports describing clear lungs, no pleural effusion, no pneumonia, or no acute cardiopulmonary disease, while retrieved reports contained consolidation or pleural effusion and the generated report repeated those unsupported abnormalities.
+
+\section{Analysis}
+
+The baseline supports the first research claim: prompt-based retrieval can introduce unsupported clinical findings into generated chest X-ray reports. The most important observation is not the exact automatic hallucination rate, because the evaluator is still noisy. The important observation is that manual review confirms clinically meaningful cases where retrieved evidence appears to enter the generated report despite being unsupported by the target reference.
+
+This is precisely the failure mode RGCA is designed to address. Prompt retrieval gives the model retrieved text without an explicit verification step. RGCA instead creates an inspectable alignment score and relevance gate before retrieval influences the visual representation.
+
+\section{Limitations}
+
+This draft reports an early pilot rather than a final benchmark. The current real-generation run uses only 20 evaluation studies. The generator is a general LLaVA checkpoint rather than a radiology-specialized report generation model. The automatic evaluator is rule-based and can over-count negated findings. Manual review is conservative but not yet radiologist-reviewed. RGCA has been specified but not yet implemented or evaluated.
+
+\section{Conclusion}
+
+This work studies retrieval-induced hallucination in chest X-ray report generation. The first baseline milestone shows that prompt-based retrieval can change VLM outputs and can introduce unsupported clinical findings when retrieved reports are noisy or mismatched. This motivates Retrieval-Guided Cross-Attention, where retrieved evidence is aligned, gated, and fused with image tokens before decoding.
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\appendix
+
+\section{Dataset and Retrieval Setup Questions}
+
+\paragraph{How do we access the dataset?}
+Use the official PhysioNet releases MIMIC-CXR v2.1.0 and MIMIC-CXR-JPG v2.1.0 after credentialing, required training, and DUA acceptance.
+
+\paragraph{Which subset do we start with?}
+Start with a small study-level pilot: 150--400 retrieval-pool studies from training and 50--100 evaluation studies, using frontal PA/AP views and one image per study.
+
+\paragraph{What image and report formats are available?}
+Images are JPG files from MIMIC-CXR-JPG. Reports are free-text \texttt{.txt} files from MIMIC-CXR.
+
+\paragraph{How do we pair images and reports?}
+Pair at study level using \texttt{study\_id}. Metadata identifies \texttt{dicom\_id}, view position, and split; reports are stored as \texttt{s<study\_id>.txt}.
+
+\paragraph{What retrieval index do we build?}
+Build a study-level nearest-neighbor index over training-set studies only, excluding evaluation studies to prevent leakage.
+
+\paragraph{Do we retrieve using image similarity, report similarity, or image-text embedding similarity?}
+The final retrieval strategy is image-text embedding similarity. Lexical or report-similarity retrieval is a debugging fallback only.
 
 \end{document}
