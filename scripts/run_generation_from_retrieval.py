@@ -77,6 +77,20 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Fail if any generated study image path is missing. This is implied by --generator hf_vlm.",
     )
+    parser.add_argument(
+        "--align-to-retrieval-artifacts",
+        action="store_true",
+        help=(
+            "Select eval studies from the subset that have the required retrieval/mismatch "
+            "artifact rows before applying --limit. This prevents late GPU failures when "
+            "the subset contains more eval studies than the retrieval artifacts cover."
+        ),
+    )
+    parser.add_argument(
+        "--preflight-only",
+        action="store_true",
+        help="Validate subset/retrieval coverage and write generation_preflight.json without loading a generator.",
+    )
     return parser.parse_args()
 
 
@@ -88,6 +102,66 @@ def rows_by_target(path: str | Path) -> dict[str, dict]:
 def select_eval_studies(studies: list[StudyRecord], limit: int) -> list[StudyRecord]:
     eval_studies = [study for study in studies if study.split == "eval"]
     return eval_studies[:limit] if limit else eval_studies
+
+
+def required_target_ids_for_modes(
+    modes: list[str],
+    retrieval_by_target: dict[str, dict],
+    mismatch_by_target: dict[str, dict],
+) -> set[str] | None:
+    required_sets: list[set[str]] = []
+    if "retrieval" in modes:
+        required_sets.append(set(retrieval_by_target))
+    if "mismatch" in modes:
+        required_sets.append(set(mismatch_by_target))
+    if not required_sets:
+        return None
+    required_ids = required_sets[0]
+    for target_ids in required_sets[1:]:
+        required_ids = required_ids & target_ids
+    return required_ids
+
+
+def select_eval_studies_with_artifact_coverage(
+    studies: list[StudyRecord],
+    limit: int,
+    modes: list[str],
+    retrieval_by_target: dict[str, dict],
+    mismatch_by_target: dict[str, dict],
+    align_to_retrieval_artifacts: bool,
+) -> tuple[list[StudyRecord], dict]:
+    eval_studies_all = [study for study in studies if study.split == "eval"]
+    required_ids = required_target_ids_for_modes(modes, retrieval_by_target, mismatch_by_target)
+
+    if align_to_retrieval_artifacts and required_ids is not None:
+        eval_studies = [study for study in eval_studies_all if study.study_id in required_ids]
+        selected = eval_studies[:limit] if limit else eval_studies
+    else:
+        selected = eval_studies_all[:limit] if limit else eval_studies_all
+
+    selected_ids = {study.study_id for study in selected}
+    missing_retrieval = (
+        sorted(selected_ids - set(retrieval_by_target)) if "retrieval" in modes else []
+    )
+    missing_mismatch = sorted(selected_ids - set(mismatch_by_target)) if "mismatch" in modes else []
+
+    coverage = {
+        "requested_limit": limit,
+        "selected_eval_size": len(selected),
+        "total_eval_studies_in_subset": len(eval_studies_all),
+        "retrieval_rows": len(retrieval_by_target),
+        "mismatch_rows": len(mismatch_by_target),
+        "align_to_retrieval_artifacts": align_to_retrieval_artifacts,
+        "missing_retrieval_count": len(missing_retrieval),
+        "missing_mismatch_count": len(missing_mismatch),
+        "missing_retrieval_examples": missing_retrieval[:20],
+        "missing_mismatch_examples": missing_mismatch[:20],
+    }
+    if required_ids is not None:
+        coverage["eval_studies_with_required_artifact_rows"] = sum(
+            1 for study in eval_studies_all if study.study_id in required_ids
+        )
+    return selected, coverage
 
 
 def mode_retrieval_context(
@@ -189,7 +263,42 @@ def main() -> None:
     if not dataset_validation["valid"]:
         raise SystemExit(f"Invalid subset: {json.dumps(dataset_validation, indent=2)}")
 
-    eval_studies = select_eval_studies(studies, args.limit)
+    retrieval_by_target = rows_by_target(retrieval_path)
+    mismatch_by_target = rows_by_target(mismatch_path)
+    modes = MODES if args.mode == "all" else [args.mode]
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    eval_studies, artifact_coverage = select_eval_studies_with_artifact_coverage(
+        studies=studies,
+        limit=args.limit,
+        modes=modes,
+        retrieval_by_target=retrieval_by_target,
+        mismatch_by_target=mismatch_by_target,
+        align_to_retrieval_artifacts=args.align_to_retrieval_artifacts,
+    )
+    write_json(output_dir / "generation_preflight.json", artifact_coverage)
+
+    if artifact_coverage["missing_retrieval_count"] or artifact_coverage["missing_mismatch_count"]:
+        raise SystemExit(
+            "Selected eval studies are not fully covered by the retrieval artifacts. "
+            "No generation was run, so GPU time is protected.\n"
+            f"{json.dumps(artifact_coverage, indent=2)}\n"
+            "Fix: regenerate/attach retrieval artifacts for the requested eval set, "
+            "lower --limit, or pass --align-to-retrieval-artifacts to select only "
+            "covered studies."
+        )
+    if args.limit and len(eval_studies) < args.limit:
+        raise SystemExit(
+            "The attached artifacts do not contain enough covered eval studies for the "
+            f"requested --limit={args.limit}. No generation was run.\n"
+            f"{json.dumps(artifact_coverage, indent=2)}"
+        )
+    if args.preflight_only:
+        print(json.dumps(artifact_coverage, indent=2))
+        print(f"Preflight passed. Coverage report: {output_dir / 'generation_preflight.json'}")
+        return
+
     if args.generator == "hf_vlm" or args.require_images:
         image_validation = validate_image_paths(eval_studies)
         if not image_validation["valid"]:
@@ -200,11 +309,7 @@ def main() -> None:
     else:
         image_validation = None
 
-    retrieval_by_target = rows_by_target(retrieval_path)
-    mismatch_by_target = rows_by_target(mismatch_path)
     studies_by_id = {study.study_id: study for study in studies}
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     generator = create_vlm_client(
         backend=args.generator,
@@ -212,7 +317,6 @@ def main() -> None:
         max_new_tokens=args.max_new_tokens,
     )
 
-    modes = MODES if args.mode == "all" else [args.mode]
     evaluation_summary: dict[str, dict] = {}
     generated_counts: dict[str, int] = {}
 
@@ -257,6 +361,7 @@ def main() -> None:
         "model_id": args.model_id,
         "max_new_tokens": args.max_new_tokens,
         "eval_size": len(eval_studies),
+        "artifact_coverage": artifact_coverage,
         "generated_counts": generated_counts,
         "evaluation_summary": evaluation_summary,
     }
