@@ -1,6 +1,10 @@
-# RGCA
+# RGCA — Retrieval-Augmented Radiology Report Generation
 
-This repository contains the first baseline implementation for retrieval-augmented radiology report generation before RGCA.
+A research baseline for comparing chest X-ray report generation with no retrieval, retrieved context and deliberately mismatched context.
+
+Related work: **When Retrieval Hurts**, first-authored by Emmanuel Idoko and accepted at Africa at NeurIPS 2026. [Paper and research context](https://www.pidoxy.com/research/when-retrieval-hurts).
+
+This repository contains the baseline pipeline. Its default mock generator validates the workflow; demo output is not evidence of medical-model performance.
 
 ## Baseline Goal
 
@@ -120,7 +124,9 @@ Definitions:
 Run the full demo:
 
 ```bash
-cd "/Users/mac/Documents/New project/RGCA"
+git clone https://github.com/pidoxy/RGCA.git
+cd RGCA
+# Requires Python 3.10 or newer.
 python3 scripts/run_baseline.py \
   --input data/demo/demo_studies.jsonl \
   --output-dir results/runs/demo_run \
@@ -388,13 +394,13 @@ For the real baseline, replace it with:
 - vector search: `FAISS`
 - retrieved payload: study reports
 
-The clean replacement point is [src/rgca_baseline/retrieval.py](/Users/mac/Documents/New%20project/RGCA/src/rgca_baseline/retrieval.py:1).
+The clean replacement point is [src/rgca_baseline/retrieval.py](src/rgca_baseline/retrieval.py).
 
 ### 3. Replace generation
 
 The current default generator is a mock/stress backend that simulates retrieval influence.
 
-For the real baseline, use the `hf_vlm` backend in [src/rgca_baseline/vlm_client.py](/Users/mac/Documents/New%20project/RGCA/src/rgca_baseline/vlm_client.py:1), for example:
+For the real baseline, use the `hf_vlm` backend in [src/rgca_baseline/vlm_client.py](src/rgca_baseline/vlm_client.py), for example:
 
 - `LLaVA-Med`
 - another local HF-compatible medical VLM
@@ -430,10 +436,6 @@ Those outputs are the evidence trail for your baseline.
 3. Set `RGCA_VLM_MODEL_ID` and rerun with `--generator hf_vlm --require-real-generator`.
 4. Compare clean retrieval vs mismatch using `retrieval_induced_hallucination_rate` and manual examples.
 
-## Notes
+## Scope
 
-- This repository is intentionally starting with a script rather than a notebook because it is easier to version, test, and extend.
-- If you want, the next step after this can be adding:
-  - a MIMIC subset builder
-  - a FAISS index builder
-  - a real Hugging Face VLM integration
+This is research software. Demo and stress-test outputs validate the protocol; real-model findings require a documented dataset, generator and evaluation run. MIMIC-CXR data requires authorised access and is not distributed with this repository.
